@@ -87,3 +87,39 @@ User (Browser)               FastAPI Backend                    Google OAuth 2.0
      |                             |-- Creates signed session cookie --|
      |<- 302 Redirect to /?auth=success (with session cookie) ---------|
 ```
+
+## 5. Gmail Read Integration Architecture (Milestone 3)
+
+```
+Authenticated User (Session Cookie)
+        ↓
+FastAPI Dependency (get_current_user) -> current_user.id
+        ↓
+OAuthService.get_valid_access_token(db, user_id)
+  (Decrypts token at rest, auto-refreshes if near expiry via refresh token)
+        ↓
+GmailService(user_id, db)
+        ↓
+Google Gmail API (google-api-python-client via asyncio.to_thread)
+  - users().getProfile()
+  - users().messages().list() (Bounded concurrency with asyncio.Semaphore)
+  - users().messages().get(format='metadata' | 'full')
+        ↓
+GmailParser
+  - RFC 2047 header decoding
+  - Base64URL payload decoding
+  - HTML to sanitized plain text extraction (strips scripts, styles, iframes)
+  - Attachment metadata extraction (no contents downloaded)
+        ↓
+Normalized Pydantic Schemas
+  - GmailProfileResponse
+  - GmailMessageListResponse (summaries)
+  - GmailMessageDetail (safe plain body & sanitized HTML text)
+```
+
+### Safety & Guardrails
+1. **Bounded Concurrency**: Uses an `asyncio.Semaphore(10)` to bound parallel metadata retrieval for list summaries.
+2. **Untrusted Data & HTML Safety**: Email content is strictly untrusted data. `_HTMLToTextParser` strips dangerous elements (`script`, `style`, `iframe`, event handlers) and extracts clean readable text. Frontend renders email content as plain text.
+3. **Zero Token / Secret Leaks**: Tokens are decrypted only transiently in memory for the API call and never appear in API responses or structured logs. Email bodies are never logged.
+4. **Scope Preservation**: Strictly read-only Gmail (`https://www.googleapis.com/auth/gmail.readonly`).
+

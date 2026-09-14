@@ -98,24 +98,44 @@ class SecurityManager:
         return f"{payload}.{signature}"
 
     @staticmethod
-    def validate_oauth_state(state: Optional[str], expected_state: Optional[str]) -> bool:
+    def validate_oauth_state_with_reason(
+        state: Optional[str],
+        expected_state: Optional[str],
+    ) -> Tuple[bool, str]:
         """
-        Validates the OAuth state parameter:
-        1. Checks state presence and non-emptiness.
-        2. Verifies exact match against expected state stored in session cookie.
-        3. Verifies HMAC-SHA256 cryptographic signature.
-        4. Verifies state has not expired.
+        Validates the OAuth state parameter with detailed status reason.
+        Supports single state or pipe-separated multiple active states from cookie.
+        Checks:
+        1. State and cookie presence.
+        2. Constant-time match against cookie state.
+        3. HMAC-SHA256 signature verification.
+        4. Expiration against 10-minute TTL.
+        Returns:
+        (True, "valid") or (False, "<reason>")
         """
-        if not state or not expected_state:
-            return False
+        if not state:
+            return False, "missing_callback_state"
+        if not expected_state:
+            return False, "missing_state_cookie"
 
-        # Constant-time comparison between callback state and cookie state
-        if not hmac.compare_digest(state, expected_state):
-            return False
+        # Split multiple active states if present
+        candidate_states = [s.strip() for s in expected_state.split("|") if s.strip()]
+        if not candidate_states:
+            return False, "empty_state_cookie"
 
-        parts = state.split(".")
+        # Find matching state candidate using constant-time comparison
+        matching_state = None
+        for candidate in candidate_states:
+            if hmac.compare_digest(state, candidate):
+                matching_state = candidate
+                break
+
+        if not matching_state:
+            return False, "state_mismatch"
+
+        parts = matching_state.split(".")
         if len(parts) != 3:
-            return False
+            return False, "malformed_state"
 
         random_part, expires_at_str, signature = parts
         payload = f"{random_part}.{expires_at_str}"
@@ -128,17 +148,29 @@ class SecurityManager:
         ).hexdigest()
 
         if not hmac.compare_digest(signature, expected_sig):
-            return False
+            return False, "signature_invalid"
 
         # Verify expiration
         try:
             expires_at = int(expires_at_str)
             if time.time() > expires_at:
-                return False
+                return False, "state_expired"
         except ValueError:
-            return False
+            return False, "invalid_timestamp"
 
-        return True
+        return True, "valid"
+
+    @staticmethod
+    def validate_oauth_state(state: Optional[str], expected_state: Optional[str]) -> bool:
+        """
+        Validates the OAuth state parameter:
+        1. Checks state presence and non-emptiness.
+        2. Verifies exact match against expected state stored in session cookie.
+        3. Verifies HMAC-SHA256 cryptographic signature.
+        4. Verifies state has not expired.
+        """
+        valid, _ = SecurityManager.validate_oauth_state_with_reason(state, expected_state)
+        return valid
 
     # -------------------------------------------------------------------------
     # Server-side Session Management

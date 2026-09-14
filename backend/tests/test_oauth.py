@@ -496,3 +496,96 @@ async def test_disconnect_google_account(async_client: AsyncClient, test_db: Asy
 
     result_tok = await test_db.execute(select(OAuthToken).where(OAuthToken.user_id == target_user_id))
     assert result_tok.scalar_one_or_none() is None
+
+
+# =============================================================================
+# 7. State Validation & Regression Tests
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_auth_google_sets_state_cookie(async_client: AsyncClient):
+    """Test that GET /auth/google sets HttpOnly state cookie and redirects."""
+    response = await async_client.get("/auth/google", follow_redirects=False)
+    assert response.status_code == 302
+    assert "oauth_state_csrf" in response.headers.get("set-cookie", "")
+    assert "accounts.google.com" in response.headers.get("location", "")
+
+
+@pytest.mark.asyncio
+async def test_auth_google_multi_attempt_preserves_valid_states(async_client: AsyncClient):
+    """Test that multiple GET /auth/google calls preserve unexpired states."""
+    res1 = await async_client.get("/auth/google", follow_redirects=False)
+    cookie1 = res1.cookies.get(settings.STATE_COOKIE_NAME)
+    assert cookie1 is not None
+
+    # Call second time with existing cookie
+    res2 = await async_client.get(
+        "/auth/google",
+        cookies={settings.STATE_COOKIE_NAME: cookie1},
+        follow_redirects=False,
+    )
+    cookie2 = res2.cookies.get(settings.STATE_COOKIE_NAME)
+    assert cookie2 is not None
+    # Both states are preserved in cookie2
+    assert cookie1 in cookie2
+    # Verify both states validate
+    assert SecurityManager.validate_oauth_state(cookie1, cookie2) is True
+
+
+@pytest.mark.asyncio
+async def test_auth_callback_expired_state_gives_timeout_error(async_client: AsyncClient):
+    """Test that an expired state (> 10 min) gives a clean timeout message."""
+    expired_state = SecurityManager.generate_oauth_state(ttl_seconds=-10)
+    cookies = {settings.STATE_COOKIE_NAME: expired_state}
+
+    response = await async_client.get(
+        f"/auth/callback?code=mock_code&state={expired_state}",
+        cookies=cookies,
+    )
+    assert response.status_code == 400
+    assert "OAuth authorization timed out" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_auth_callback_clears_state_cookie_and_prevents_replay(
+    async_client: AsyncClient,
+    test_db: AsyncSession,
+):
+    """Test that state cookie is cleared on successful callback, preventing replay."""
+    state = SecurityManager.generate_oauth_state(ttl_seconds=600)
+    cookies = {settings.STATE_COOKIE_NAME: state}
+
+    mock_token_data = {
+        "access_token": "ya29.mock-token-replay",
+        "refresh_token": "1//mock-refresh-token",
+        "expires_in": 3600,
+        "token_type": "Bearer",
+        "scope": "openid email profile",
+    }
+    mock_userinfo = {
+        "id": "google-replay-sub",
+        "email": "replay_test@example.com",
+        "name": "Replay User",
+    }
+
+    with patch.object(OAuthService, "exchange_code_for_tokens", return_value=mock_token_data), \
+         patch.object(OAuthService, "fetch_user_info", return_value=mock_userinfo):
+
+        # First request succeeds
+        res1 = await async_client.get(
+            f"/auth/callback?code=valid_code_123&state={state}",
+            cookies=cookies,
+            follow_redirects=False,
+        )
+        assert res1.status_code == 302
+        # Verify state cookie deletion instruction is in headers
+        assert f"{settings.STATE_COOKIE_NAME}=;" in res1.headers.get("set-cookie", "") or \
+               f'max-age=0' in res1.headers.get("set-cookie", "").lower()
+
+        # Replay attempt with empty/cleared cookie fails
+        res2 = await async_client.get(
+            f"/auth/callback?code=valid_code_123&state={state}",
+            cookies={},
+        )
+        assert res2.status_code == 400
+

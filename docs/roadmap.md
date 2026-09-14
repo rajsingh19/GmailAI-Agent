@@ -18,10 +18,15 @@
   - Frontend Google connection card with active/disconnected states
   - 23 mocked unit and integration tests passing with 100% coverage of OAuth flows
 
-- [ ] **Milestone 3 — Gmail Integration** ⏳
-  - Gmail API service for email reading
-  - Thread inspection and body parsing
-  - Unread message triage and importance filtering
+- [ ] **Milestone 3 — Gmail Read Integration** ⏳ *(Implemented & Test Verified; awaiting live browser verification)*
+  - Gmail API service (`GmailService`) for email reading and profile retrieval
+  - Bounded concurrency (`asyncio.Semaphore`) for metadata extraction
+  - Thread and MIME body parsing (`GmailParser`) with RFC 2047 header decoding
+  - Untrusted HTML sanitized plain text extraction (no executable JavaScript)
+  - Attachment metadata extraction without payload downloading
+  - Full multi-user isolation and automatic OAuth token refresh
+  - Responsive frontend Gmail inbox card with search query syntax and modal detail viewer
+  - 51 passing backend tests with zero real Google API calls during testing
 
 - [ ] **Milestone 4 — Calendar Integration** ⏳
   - Google Calendar OAuth scope addition

@@ -44,15 +44,23 @@ router = APIRouter(tags=["Authentication"])
     ),
 )
 async def auth_google(
+    request: Request,
     redirect: bool = Query(default=True, description="Redirect directly to Google if true, else return JSON"),
 ) -> Response:
     """
     Step 1 of OAuth Flow:
-    1. Generate cryptographically signed state token with 10-minute TTL.
-    2. Build authorization URL with least-privilege scopes (Gmail read-only).
-    3. Store state in HttpOnly SameSite cookie.
-    4. Redirect user to Google OAuth consent page.
+    1. Enforce host consistency: redirect 127.0.0.1 -> localhost:8000.
+    2. Generate cryptographically signed state token with 10-minute TTL.
+    3. Build authorization URL with least-privilege scopes (Gmail read-only).
+    4. Store state in HttpOnly SameSite cookie (safely preserving recent unexpired attempts).
+    5. Redirect user to Google OAuth consent page.
     """
+    # Enforce localhost hostname consistency to ensure cookies match callback domain
+    host_header = request.headers.get("host", "")
+    if host_header.startswith("127.0.0.1"):
+        logger.info("Redirecting OAuth initiation from 127.0.0.1 to localhost for cookie domain consistency")
+        return RedirectResponse(url="http://localhost:8000/auth/google", status_code=status.HTTP_302_FOUND)
+
     try:
         state = SecurityManager.generate_oauth_state(ttl_seconds=settings.STATE_COOKIE_MAX_AGE)
         authorization_url = OAuthService.create_authorization_url(state=state)
@@ -69,10 +77,22 @@ async def auth_google(
         # Standard browser redirect
         response = RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
 
+    # Safely preserve recent unexpired states in cookie (up to last 2 + new one)
+    existing_cookie = request.cookies.get(settings.STATE_COOKIE_NAME, "")
+    active_states = []
+    if existing_cookie:
+        for old_state in existing_cookie.split("|"):
+            old_state = old_state.strip()
+            if old_state and SecurityManager.validate_oauth_state(old_state, old_state):
+                active_states.append(old_state)
+    active_states = active_states[-2:]  # keep at most 2 previous valid states
+    active_states.append(state)
+    combined_cookie_val = "|".join(active_states)
+
     # Securely set CSRF state cookie
     response.set_cookie(
         key=settings.STATE_COOKIE_NAME,
-        value=state,
+        value=combined_cookie_val,
         max_age=settings.STATE_COOKIE_MAX_AGE,
         httponly=True,
         samesite="lax",
@@ -106,14 +126,22 @@ async def auth_callback(
 ) -> Response:
     """
     Step 2 of OAuth Flow:
-    1. Check for user denial or Google error.
-    2. Validate state matches cookie and signature is authentic.
-    3. Exchange code for access & refresh tokens.
-    4. Retrieve user's Google profile.
-    5. Upsert User and GoogleAccount in DB, storing encrypted tokens.
-    6. Issue secure session cookie.
-    7. Redirect to frontend dashboard.
+    1. Ensure request hostname matches localhost.
+    2. Check for user denial or Google error.
+    3. Validate state matches cookie and signature is authentic.
+    4. Exchange code for access & refresh tokens.
+    5. Retrieve user's Google profile.
+    6. Upsert User and GoogleAccount in DB, storing encrypted tokens.
+    7. Issue secure session cookie.
+    8. Redirect to frontend dashboard.
     """
+    # 0. Enforce hostname consistency on callback
+    host_header = request.headers.get("host", "")
+    if host_header.startswith("127.0.0.1"):
+        redirect_url = f"http://localhost:8000/auth/callback?{request.query_params}"
+        logger.info("Redirecting callback from 127.0.0.1 to localhost for cookie alignment")
+        return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
+
     # 1. Handle user cancellation or OAuth error
     if error:
         logger.warning("Google OAuth error in callback: error=%s desc=%s", error, error_description)
@@ -124,13 +152,25 @@ async def auth_callback(
 
     # 2. Validate CSRF state parameter
     cookie_state = request.cookies.get(settings.STATE_COOKIE_NAME)
-    is_valid_state = SecurityManager.validate_oauth_state(state=state, expected_state=cookie_state)
+    is_valid_state, reason = SecurityManager.validate_oauth_state_with_reason(
+        state=state,
+        expected_state=cookie_state,
+    )
 
     if not is_valid_state:
-        logger.warning("Rejected OAuth callback due to invalid or expired state.")
+        logger.warning(
+            "Rejected OAuth callback: reason=%s (has_cookie=%s, has_state=%s)",
+            reason,
+            bool(cookie_state),
+            bool(state),
+        )
+        if reason == "state_expired":
+            error_detail = "OAuth authorization timed out. The authorization window is 10 minutes. Please restart authentication."
+        else:
+            error_detail = "Invalid, tampered, or expired OAuth state parameter. Please restart authentication."
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid, tampered, or expired OAuth state parameter. Please restart authentication.",
+            detail=error_detail,
         )
 
     if not code:

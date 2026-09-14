@@ -413,7 +413,8 @@ class OAuthService:
             except Exception:
                 scopes = []
             if oauth_token.expires_at:
-                is_expired = datetime.now(timezone.utc) >= oauth_token.expires_at
+                expires_at_utc = ensure_utc(oauth_token.expires_at)
+                is_expired = datetime.now(timezone.utc) >= expires_at_utc if expires_at_utc else False
             if not oauth_token.encrypted_refresh_token:
                 requires_reauth = True
 

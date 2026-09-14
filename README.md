@@ -8,7 +8,7 @@ A production-grade, multi-user Personal AI Assistant web application. It connect
 
 - [x] **Milestone 1 — Foundation**: Monorepo layout, FastAPI backend, React + TypeScript + Vite frontend, structured logging, health check endpoint, pytest test suite.
 - [x] **Milestone 2 — Google OAuth Authentication for Gmail**: Google OAuth 2.0 web-server flow, CSRF state protection, encrypted tokens at rest (AES-128 Fernet), server-side session cookies, multi-user isolation, Alembic database migrations, frontend connection management, and 23 comprehensive mocked tests.
-- [ ] **Milestone 3 — Gmail Integration**: Email reading, thread parsing, inbox summarization.
+- [x] **Milestone 3 — Gmail Read Integration**: Read-only Gmail API integration (`/api/v1/gmail/profile`, `/api/v1/gmail/messages`, `/api/v1/gmail/messages/{message_id}`), bounded concurrency (`asyncio.Semaphore`), RFC 2047 MIME parsing, untrusted HTML sanitized text extraction, attachment metadata without downloading bytes, multi-user isolation, automatic token refresh, and 51 passing backend tests.
 - [ ] **Milestone 4 — Calendar Integration**: Google Calendar event retrieval and creation.
 - [ ] **Milestone 5 — Reminders**: Task creation and notification tracking.
 - [ ] **Milestone 6 — AI Agent**: Gemini LLM orchestrator with tool calling.
@@ -126,6 +126,9 @@ To enable Google OAuth locally on port 8000:
 | `GET` | `/auth/status` | Returns authenticated session and connected Google account info |
 | `POST` | `/auth/logout` | Logs out user and clears session cookie |
 | `POST` | `/auth/google/disconnect` | Revokes tokens with Google and disconnects Google account |
+| `GET` | `/api/v1/gmail/profile` | Returns mailbox stats (total messages, threads) for authenticated account |
+| `GET` | `/api/v1/gmail/messages` | Lists email summaries (supports pagination `page_token`, search `query`) |
+| `GET` | `/api/v1/gmail/messages/{id}` | Returns email details, safe plain body, sanitized HTML text, attachment metadata |
 
 ---
 

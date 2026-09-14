@@ -3,6 +3,7 @@ import { Bot, Sparkles, ShieldAlert, Cpu, CheckCircle2, AlertCircle, X } from 'l
 import { fetchHealth, fetchAuthStatus, HealthCheckResult, AuthStatusResponse } from './services/api';
 import { HealthStatusCard } from './components/HealthStatusCard';
 import { GoogleConnectionCard } from './components/GoogleConnectionCard';
+import { GmailInboxCard } from './components/GmailInboxCard';
 import { SystemOverview } from './components/SystemOverview';
 
 export const App: React.FC = () => {
@@ -142,6 +143,11 @@ export const App: React.FC = () => {
             onRefresh={checkAuthStatus}
             error={authError}
           />
+        </section>
+
+        {/* Milestone 3: Gmail Inbox Card */}
+        <section aria-labelledby="gmail-inbox-heading">
+          <GmailInboxCard authStatus={authStatus} />
         </section>
 
         {/* Backend Operational Health Status Card */}
