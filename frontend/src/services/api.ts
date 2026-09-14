@@ -236,3 +236,191 @@ export async function fetchGmailMessageDetail(messageId: string): Promise<GmailM
   return await response.json();
 }
 
+// ============================================================================
+// Google Calendar API Integration
+// ============================================================================
+
+export interface CalendarSummary {
+  id: string;
+  summary: string;
+  description?: string | null;
+  time_zone?: string | null;
+  primary: boolean;
+  background_color?: string | null;
+  access_role?: string | null;
+  selected: boolean;
+  hidden: boolean;
+}
+
+export interface CalendarListResponse {
+  calendars: CalendarSummary[];
+  next_page_token?: string | null;
+}
+
+export interface CalendarDetail {
+  id: string;
+  summary: string;
+  description?: string | null;
+  location?: string | null;
+  time_zone?: string | null;
+  primary: boolean;
+  access_role?: string | null;
+  selected: boolean;
+  hidden: boolean;
+}
+
+export interface CalendarAttendee {
+  email?: string | null;
+  display_name?: string | null;
+  response_status?: string | null;
+  organizer: boolean;
+  self: boolean;
+}
+
+export interface CalendarConferenceData {
+  entry_point_type?: string | null;
+  uri?: string | null;
+  label?: string | null;
+  solution_name?: string | null;
+}
+
+export interface CalendarEventSummary {
+  id: string;
+  calendar_id: string;
+  summary: string;
+  description?: string | null;
+  location?: string | null;
+  start: string;
+  end: string;
+  time_zone?: string | null;
+  status: string;
+  html_link?: string | null;
+  organizer?: string | null;
+  attendees_count: number;
+  is_all_day: boolean;
+  has_conference: boolean;
+  conference_uri?: string | null;
+}
+
+export interface CalendarEventDetail {
+  id: string;
+  calendar_id: string;
+  summary: string;
+  description?: string | null;
+  location?: string | null;
+  start: string;
+  end: string;
+  time_zone?: string | null;
+  status: string;
+  html_link?: string | null;
+  organizer?: string | null;
+  creator?: string | null;
+  attendees: CalendarAttendee[];
+  conference?: CalendarConferenceData | null;
+  recurrence: string[];
+  is_all_day: boolean;
+}
+
+export interface CalendarEventListResponse {
+  events: CalendarEventSummary[];
+  next_page_token?: string | null;
+  calendar_id: string;
+}
+
+export async function fetchCalendars(pageToken?: string): Promise<CalendarListResponse> {
+  const queryParams = new URLSearchParams();
+  if (pageToken) queryParams.set('page_token', pageToken);
+
+  const url = `${API_BASE_URL}/api/v1/calendar/calendars${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch calendars' }));
+    throw new Error(errorData.detail || `Failed to fetch calendars (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function fetchCalendar(calendarId: string): Promise<CalendarDetail> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/calendar/calendars/${encodeURIComponent(calendarId)}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch calendar' }));
+    throw new Error(errorData.detail || `Failed to fetch calendar (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function fetchCalendarEvents(params?: {
+  calendar_id?: string;
+  time_min?: string;
+  time_max?: string;
+  max_results?: number;
+  page_token?: string;
+  query?: string;
+  single_events?: boolean;
+}): Promise<CalendarEventListResponse> {
+  const queryParams = new URLSearchParams();
+  if (params?.calendar_id) queryParams.set('calendar_id', params.calendar_id);
+  if (params?.time_min) queryParams.set('time_min', params.time_min);
+  if (params?.time_max) queryParams.set('time_max', params.time_max);
+  if (params?.max_results) queryParams.set('max_results', params.max_results.toString());
+  if (params?.page_token) queryParams.set('page_token', params.page_token);
+  if (params?.query) queryParams.set('query', params.query);
+  if (params?.single_events !== undefined) queryParams.set('single_events', String(params.single_events));
+
+  const url = `${API_BASE_URL}/api/v1/calendar/events${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch calendar events' }));
+    throw new Error(errorData.detail || `Failed to fetch calendar events (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function fetchCalendarEventDetail(
+  calendarId: string,
+  eventId: string,
+): Promise<CalendarEventDetail> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/calendar/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch event details' }));
+    throw new Error(errorData.detail || `Failed to fetch event details (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+

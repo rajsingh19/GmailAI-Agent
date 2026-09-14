@@ -1,4 +1,3 @@
-"""Pydantic schemas module."""
 from app.schemas.health import HealthResponse
 from app.schemas.gmail import (
     GmailProfileResponse,
@@ -6,6 +5,17 @@ from app.schemas.gmail import (
     GmailMessageSummary,
     GmailMessageDetail,
     GmailMessageListResponse,
+)
+from app.schemas.calendar import (
+    CalendarSummary,
+    CalendarListResponse,
+    CalendarDetail,
+    CalendarAttendee,
+    CalendarConferenceData,
+    CalendarReminder,
+    CalendarEventSummary,
+    CalendarEventDetail,
+    CalendarEventListResponse,
 )
 
 __all__ = [
@@ -15,5 +25,15 @@ __all__ = [
     "GmailMessageSummary",
     "GmailMessageDetail",
     "GmailMessageListResponse",
+    "CalendarSummary",
+    "CalendarListResponse",
+    "CalendarDetail",
+    "CalendarAttendee",
+    "CalendarConferenceData",
+    "CalendarReminder",
+    "CalendarEventSummary",
+    "CalendarEventDetail",
+    "CalendarEventListResponse",
 ]
+
 

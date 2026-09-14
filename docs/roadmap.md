@@ -18,20 +18,29 @@
   - Frontend Google connection card with active/disconnected states
   - 23 mocked unit and integration tests passing with 100% coverage of OAuth flows
 
-- [ ] **Milestone 3 — Gmail Read Integration** ⏳ *(Implemented & Test Verified; awaiting live browser verification)*
+- [x] **Milestone 3 — Gmail Read Integration** ✅
   - Gmail API service (`GmailService`) for email reading and profile retrieval
-  - Bounded concurrency (`asyncio.Semaphore`) for metadata extraction
+  - Single-call Google Batch API metadata retrieval with bounded fallback
   - Thread and MIME body parsing (`GmailParser`) with RFC 2047 header decoding
   - Untrusted HTML sanitized plain text extraction (no executable JavaScript)
   - Attachment metadata extraction without payload downloading
   - Full multi-user isolation and automatic OAuth token refresh
   - Responsive frontend Gmail inbox card with search query syntax and modal detail viewer
-  - 51 passing backend tests with zero real Google API calls during testing
+  - Real browser verified with live Gmail API
 
-- [ ] **Milestone 4 — Calendar Integration** ⏳
-  - Google Calendar OAuth scope addition
-  - Agenda retrieval, event creation, conflict detection
-  - Explicit user confirmation gate for event changes
+- [ ] **Milestone 4 — Google Calendar Read Integration** ⏳ *(Implemented & Test Verified; awaiting live browser verification)*
+  - Google Calendar read-only OAuth scope (`https://www.googleapis.com/auth/calendar.readonly`)
+  - Incremental OAuth authorization and scope merging preserving Gmail access
+  - Explicit scope checking before calling Google Calendar API
+  - Calendar list (`GET /api/v1/calendar/calendars`) and detail (`GET /api/v1/calendar/calendars/{calendar_id}`)
+  - Date-range event listing (`GET /api/v1/calendar/events`) with RFC3339 timezone preservation
+  - Timed events vs all-day events distinction
+  - Recurring event expansion (`singleEvents=True`, `orderBy=startTime`)
+  - Event detail (`GET /api/v1/calendar/calendars/{calendar_id}/events/{event_id}`)
+  - Safe attendee and conference (Google Meet) metadata normalization
+  - Strict read-only enforcement (zero event creation/modification/deletion)
+  - 85 passing backend tests with zero real Google API calls during testing
+  - Modern frontend Calendar dashboard card with filter tabs (Today, This Week, Upcoming) and modal viewer
 
 - [ ] **Milestone 5 — Reminders** ⏳
   - Task and reminder tracking models

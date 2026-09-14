@@ -123,3 +123,46 @@ Normalized Pydantic Schemas
 3. **Zero Token / Secret Leaks**: Tokens are decrypted only transiently in memory for the API call and never appear in API responses or structured logs. Email bodies are never logged.
 4. **Scope Preservation**: Strictly read-only Gmail (`https://www.googleapis.com/auth/gmail.readonly`).
 
+## 6. Google Calendar Read Integration Architecture (Milestone 4)
+
+```
+Authenticated User (Session Cookie)
+        ↓
+FastAPI Dependency (get_current_user) -> current_user.id
+        ↓
+OAuthService.has_required_scope(db, user_id, "calendar.readonly")
+  (Explicit scope verification before initiating Google API calls)
+        ↓
+OAuthService.get_valid_access_token(db, user_id)
+  (Decrypts token at rest, auto-refreshes if near expiry via refresh token)
+        ↓
+CalendarService(user_id, db)
+        ↓
+Google Calendar API v3 (google-api-python-client via asyncio.to_thread)
+  - calendarList().list(minAccessRole='reader')
+  - calendarList().get() / calendars().get()
+  - events().list(singleEvents=True, orderBy='startTime', timeMin=..., timeMax=...)
+  - events().get()
+        ↓
+Calendar Normalization
+  - Timezone preservation & RFC3339 datetime formatting
+  - Distinct timed vs all-day event representation (is_all_day flag)
+  - Attendee metadata normalization (email, display name, response status)
+  - Safe Google Meet / video conference URI extraction
+  - Plain text sanitized description previews
+        ↓
+Normalized Pydantic Schemas
+  - CalendarListResponse / CalendarSummary
+  - CalendarDetail
+  - CalendarEventListResponse / CalendarEventSummary
+  - CalendarEventDetail
+```
+
+### Calendar Safety & Guardrails
+1. **Incremental Authorization**: Allows existing Gmail-only users to incrementally authorize `calendar.readonly` without breaking Gmail access, losing refresh tokens, or duplicating user records.
+2. **Explicit Scope Checks**: If `calendar.readonly` is missing from the stored token scopes, `CalendarService` raises a domain exception immediately without calling the Google Calendar API, prompting the user to authorize.
+3. **Strict Read-Only Guarantee**: Only `calendarList.list`, `calendarList.get`, `calendars.get`, `events.list`, and `events.get` are implemented. Zero create, update, patch, delete, or invitation methods exist.
+4. **Untrusted Data & XSS Protection**: Event summaries, descriptions, locations, and attendee names are strictly treated as untrusted data and rendered as escaped plain text in the frontend UI.
+5. **Multi-User Isolation**: Calendar queries are anchored on `current_user.id` from the secure server session. A user's token can only access calendars authorized for that Google account.
+
+

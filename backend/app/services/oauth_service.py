@@ -279,14 +279,25 @@ class OAuthService:
             logger.info("Stored new encrypted OAuthToken for user_id=%s", user.id)
         else:
             oauth_token.encrypted_access_token = encrypted_access
-            # Only overwrite refresh token if Google returned a new one
+            # Only overwrite refresh token if Google returned a new one (preserve existing valid refresh token)
             if raw_refresh_token:
                 oauth_token.encrypted_refresh_token = SecurityManager.encrypt_token(raw_refresh_token)
             oauth_token.token_type = token_type
-            oauth_token.scopes = json.dumps(scopes_list)
+            
+            # Safely merge newly granted scopes with existing scopes to preserve incremental authorization
+            existing_scopes = []
+            if oauth_token.scopes:
+                try:
+                    existing_scopes = json.loads(oauth_token.scopes)
+                    if not isinstance(existing_scopes, list):
+                        existing_scopes = []
+                except Exception:
+                    existing_scopes = []
+            merged_scopes = list(dict.fromkeys(existing_scopes + scopes_list))
+            oauth_token.scopes = json.dumps(merged_scopes)
             oauth_token.expires_at = expires_at
             oauth_token.updated_at = datetime.now(timezone.utc)
-            logger.info("Updated existing encrypted OAuthToken for user_id=%s", user.id)
+            logger.info("Updated existing encrypted OAuthToken for user_id=%s with %d scopes", user.id, len(merged_scopes))
 
         await db.commit()
         await db.refresh(user)
@@ -473,9 +484,43 @@ class OAuthService:
         google_account = acct_result.scalar_one_or_none()
         if google_account:
             await db.delete(google_account)
-        elif token_record:
-            await db.delete(token_record)
-
         await db.commit()
         logger.info("Disconnected Google account for user_id=%s", user_id)
         return True
+
+    @classmethod
+    async def get_user_granted_scopes(cls, db: AsyncSession, user_id: str) -> List[str]:
+        """Returns the list of granted OAuth scopes for the user's account."""
+        result = await db.execute(
+            select(OAuthToken).where(OAuthToken.user_id == user_id)
+        )
+        token_record = result.scalar_one_or_none()
+        if not token_record or not token_record.scopes:
+            return []
+        try:
+            scopes = json.loads(token_record.scopes)
+            return scopes if isinstance(scopes, list) else []
+        except Exception:
+            return []
+
+    @classmethod
+    async def has_required_scope(cls, db: AsyncSession, user_id: str, required_scope: str) -> bool:
+        """
+        Explicitly checks if a required OAuth scope is granted to the user.
+        Checks for exact match or equivalent standard permissions.
+        """
+        granted = await cls.get_user_granted_scopes(db, user_id)
+        if required_scope in granted:
+            return True
+        # Check standard short alias or broader scope
+        if required_scope == "https://www.googleapis.com/auth/calendar.readonly":
+            return any(s in granted for s in [
+                "https://www.googleapis.com/auth/calendar.readonly",
+                "https://www.googleapis.com/auth/calendar",
+            ])
+        if required_scope == "https://www.googleapis.com/auth/gmail.readonly":
+            return any(s in granted for s in [
+                "https://www.googleapis.com/auth/gmail.readonly",
+                "https://mail.google.com/",
+            ])
+        return False

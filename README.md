@@ -4,12 +4,12 @@ A production-grade, multi-user Personal AI Assistant web application. It connect
 
 ---
 
-## Current Status: Milestone 2 Complete
+## Current Status: Milestone 4 Implemented & Test-Verified
 
 - [x] **Milestone 1 — Foundation**: Monorepo layout, FastAPI backend, React + TypeScript + Vite frontend, structured logging, health check endpoint, pytest test suite.
 - [x] **Milestone 2 — Google OAuth Authentication for Gmail**: Google OAuth 2.0 web-server flow, CSRF state protection, encrypted tokens at rest (AES-128 Fernet), server-side session cookies, multi-user isolation, Alembic database migrations, frontend connection management, and 23 comprehensive mocked tests.
-- [x] **Milestone 3 — Gmail Read Integration**: Read-only Gmail API integration (`/api/v1/gmail/profile`, `/api/v1/gmail/messages`, `/api/v1/gmail/messages/{message_id}`), bounded concurrency (`asyncio.Semaphore`), RFC 2047 MIME parsing, untrusted HTML sanitized text extraction, attachment metadata without downloading bytes, multi-user isolation, automatic token refresh, and 51 passing backend tests.
-- [ ] **Milestone 4 — Calendar Integration**: Google Calendar event retrieval and creation.
+- [x] **Milestone 3 — Gmail Read Integration**: Read-only Gmail API integration (`/api/v1/gmail/profile`, `/api/v1/gmail/messages`, `/api/v1/gmail/messages/{message_id}`), single-call Batch API metadata retrieval, RFC 2047 MIME parsing, untrusted HTML sanitized text extraction, attachment metadata without downloading bytes, multi-user isolation, automatic token refresh, 55 passing backend tests, and real browser verification.
+- [x] **Milestone 4 — Google Calendar Read Integration**: Google Calendar API integration (`/api/v1/calendar/calendars`, `/api/v1/calendar/calendars/{calendar_id}`, `/api/v1/calendar/events`, `/api/v1/calendar/calendars/{calendar_id}/events/{event_id}`), incremental scope authorization (`https://www.googleapis.com/auth/calendar.readonly`), explicit scope verification, date-range filtering (RFC 3339), timezone preservation, all-day event handling, recurring event expansion (`singleEvents=True`), conference (Google Meet) & attendee metadata normalization, strict read-only enforcement, and 85 passing backend tests.
 - [ ] **Milestone 5 — Reminders**: Task creation and notification tracking.
 - [ ] **Milestone 6 — AI Agent**: Gemini LLM orchestrator with tool calling.
 - [ ] **Milestone 7 — Intelligent Scheduling**: Automatic clash detection and meeting suggestions.
@@ -129,6 +129,10 @@ To enable Google OAuth locally on port 8000:
 | `GET` | `/api/v1/gmail/profile` | Returns mailbox stats (total messages, threads) for authenticated account |
 | `GET` | `/api/v1/gmail/messages` | Lists email summaries (supports pagination `page_token`, search `query`) |
 | `GET` | `/api/v1/gmail/messages/{id}` | Returns email details, safe plain body, sanitized HTML text, attachment metadata |
+| `GET` | `/api/v1/calendar/calendars` | Lists user's accessible Google calendars |
+| `GET` | `/api/v1/calendar/calendars/{calendar_id}` | Returns detailed calendar metadata |
+| `GET` | `/api/v1/calendar/events` | Lists events with date-range filters (`time_min`, `time_max`), query search, timezone preservation |
+| `GET` | `/api/v1/calendar/calendars/{calendar_id}/events/{event_id}` | Returns detailed event metadata, attendees, and Google Meet URI |
 
 ---
 
@@ -137,7 +141,9 @@ To enable Google OAuth locally on port 8000:
 The test suite runs with fully mocked external Google APIs and an in-memory SQLite database:
 
 ```bash
-PYTHONPATH=backend backend/.venv/bin/pytest backend/tests -v
+cd backend
+.venv/bin/pytest tests -v
 ```
 
-All 23 unit and integration tests will execute in under 1 second.
+All 85 unit and integration tests will execute in under 4 seconds with 100% pass rate.
+

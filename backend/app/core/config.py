@@ -61,12 +61,13 @@ class Settings(BaseSettings):
     GOOGLE_USERINFO_URI: str = "https://www.googleapis.com/oauth2/v2/userinfo"
     GOOGLE_REVOKE_URI: str = "https://oauth2.googleapis.com/revoke"
 
-    # OAuth Scopes: strictly read-only Gmail + standard identity profile
+    # OAuth Scopes: strictly read-only Gmail + Calendar + standard identity profile
     OAUTH_SCOPES: List[str] = [
         "openid",
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
         "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/calendar.readonly",
     ]
 
     # AI Provider configuration (Placeholders for upcoming phases)

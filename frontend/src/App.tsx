@@ -4,6 +4,7 @@ import { fetchHealth, fetchAuthStatus, HealthCheckResult, AuthStatusResponse } f
 import { HealthStatusCard } from './components/HealthStatusCard';
 import { GoogleConnectionCard } from './components/GoogleConnectionCard';
 import { GmailInboxCard } from './components/GmailInboxCard';
+import { CalendarCard } from './components/CalendarCard';
 import { SystemOverview } from './components/SystemOverview';
 
 export const App: React.FC = () => {
@@ -78,7 +79,7 @@ export const App: React.FC = () => {
               <h1 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
                 Personal AI Assistant
                 <span className="hidden sm:inline-flex items-center text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                  Milestone 2 Active
+                  Milestone 4 Active
                 </span>
               </h1>
             </div>
@@ -131,7 +132,7 @@ export const App: React.FC = () => {
             Personal AI Assistant Dashboard
           </h2>
           <p className="text-sm sm:text-base text-slate-400 mt-2 max-w-2xl leading-relaxed">
-            Connect your personal Google Account via OAuth 2.0 to grant the AI assistant read-only access to analyze incoming emails and triage important messages.
+            Connect your personal Google Account via OAuth 2.0 to grant the AI assistant read-only access to analyze incoming emails and calendar schedules.
           </p>
         </div>
 
@@ -148,6 +149,11 @@ export const App: React.FC = () => {
         {/* Milestone 3: Gmail Inbox Card */}
         <section aria-labelledby="gmail-inbox-heading">
           <GmailInboxCard authStatus={authStatus} />
+        </section>
+
+        {/* Milestone 4: Google Calendar Card */}
+        <section aria-labelledby="calendar-heading">
+          <CalendarCard authStatus={authStatus} />
         </section>
 
         {/* Backend Operational Health Status Card */}
