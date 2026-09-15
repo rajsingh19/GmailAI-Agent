@@ -70,9 +70,48 @@ class Settings(BaseSettings):
         "https://www.googleapis.com/auth/calendar.readonly",
     ]
 
-    # AI Provider configuration (Placeholders for upcoming phases)
+    # AI Provider configuration (Milestone 6)
     GEMINI_API_KEY: str = ""
-    AI_MODEL_NAME: str = "gemini-1.5-flash"
+    AI_MODEL_NAME: str = "gemini-2.0-flash"
+    GEMINI_MODEL: Optional[str] = None  # Optional override
+
+    # Embedding & RAG Configuration (Milestone 7)
+    EMBEDDING_PROVIDER: str = "gemini"
+    EMBEDDING_MODEL: str = "text-embedding-004"
+    EMBEDDING_DIMENSIONS: int = 768
+    RAG_CHUNK_SIZE: int = 500
+    RAG_CHUNK_OVERLAP: int = 75
+    RAG_TOP_K: int = 5
+    RAG_SIMILARITY_THRESHOLD: float = 0.65
+    MAX_GMAIL_MESSAGES_PER_INGEST: int = 30
+    MAX_CALENDAR_EVENTS_PER_INGEST: int = 30
+    MAX_TASKS_PER_INGEST: int = 50
+    MAX_REMINDERS_PER_INGEST: int = 50
+    MAX_TOTAL_DOCS_PER_REINDEX: int = 100
+    MAX_TOTAL_CHUNKS_PER_INGEST: int = 500
+    EMBEDDING_BATCH_SIZE: int = 20
+    INGESTION_TIMEOUT_SECONDS: int = 45
+    MAX_DOCUMENT_INGEST_CHARS: int = 20000
+
+    # Agent Execution, Context & Timeout Limits
+    MAX_TOOL_CALLS_PER_TURN: int = 5
+    TOOL_TIMEOUT_SECONDS: int = 10
+    AGENT_TIMEOUT_SECONDS: int = 30
+    MAX_AGENT_MESSAGE_LENGTH: int = 4000
+    MAX_HISTORY_MESSAGES: int = 10
+    MAX_HISTORY_CHARS: int = 8000
+    MAX_TOOL_RESULT_CHARS: int = 4000
+    CONFIRMATION_TOKEN_TTL_SECONDS: int = 300  # 5 minutes
+
+    @property
+    def effective_model_name(self) -> str:
+        """Returns the configured model name, prioritizing GEMINI_MODEL over AI_MODEL_NAME."""
+        return self.GEMINI_MODEL or self.AI_MODEL_NAME
+
+    @property
+    def effective_embedding_model(self) -> str:
+        """Returns the configured embedding model name."""
+        return self.EMBEDDING_MODEL
 
     model_config = SettingsConfigDict(
         env_file=(".env", "backend/.env", "../.env"),

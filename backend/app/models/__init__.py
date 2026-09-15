@@ -4,5 +4,16 @@ from app.models.google_account import GoogleAccount, OAuthToken
 from app.models.task import Task
 from app.models.reminder import Reminder
 from app.models.notification import Notification
+from app.models.knowledge import KnowledgeDocument, KnowledgeChunk
 
-__all__ = ["User", "GoogleAccount", "OAuthToken", "Task", "Reminder", "Notification"]
+__all__ = [
+    "User",
+    "GoogleAccount",
+    "OAuthToken",
+    "Task",
+    "Reminder",
+    "Notification",
+    "KnowledgeDocument",
+    "KnowledgeChunk",
+]
+

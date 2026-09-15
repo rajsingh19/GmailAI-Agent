@@ -761,5 +761,200 @@ export async function deleteNotification(notificationId: string): Promise<void> 
   }
 }
 
+// ============================================================================
+// AI Agent API Integration (Milestone 6)
+// ============================================================================
 
+export interface AgentChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ConfirmationChallenge {
+  status: 'confirmation_required';
+  tool: string;
+  target_id: string;
+  action: string;
+  confirmation_token: string;
+  message: string;
+}
+
+export interface ToolActivityInfo {
+  name: string;
+  status: 'running' | 'completed' | 'failed' | 'confirmation_required';
+  summary: string;
+}
+
+export interface AgentChatRequest {
+  message: string;
+  history?: AgentChatMessage[] | null;
+  confirmation_token?: string | null;
+}
+
+export interface AgentChatResponse {
+  message: string;
+  execution_id: string;
+  tool_activities: ToolActivityInfo[];
+  confirmation_required?: ConfirmationChallenge | null;
+  metadata: {
+    model?: string;
+    duration_ms?: number;
+    tool_calls_count?: number;
+    [key: string]: any;
+  };
+}
+
+export interface ToolDefinitionSchema {
+  name: string;
+  description: string;
+  risk_level: 'READ' | 'LOW_RISK_WRITE' | 'HIGH_RISK_WRITE';
+  parameters: Record<string, any>;
+}
+
+export interface AgentToolsResponse {
+  tools: ToolDefinitionSchema[];
+  total: number;
+}
+
+export async function sendAgentMessage(request: AgentChatRequest): Promise<AgentChatResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/agent/chat`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to communicate with AI Assistant' }));
+    throw new Error(errorData.detail || `AI Assistant error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function fetchAgentTools(): Promise<AgentToolsResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/agent/tools`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch agent tools' }));
+    throw new Error(errorData.detail || `Failed to fetch agent tools (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+// ============================================================================
+// Personal Knowledge & RAG API Integration (Milestone 7)
+// ============================================================================
+
+export interface KnowledgeCitation {
+  citation_id: string;
+  source_type: string;
+  source_id: string;
+  title: string;
+  similarity_score: number;
+}
+
+export interface KnowledgeResultItem {
+  citation_id: string;
+  source_type: string;
+  source_id: string;
+  title: string;
+  snippet: string;
+  similarity_score: number;
+  timestamp?: string | null;
+  metadata?: Record<string, any>;
+}
+
+export interface KnowledgeSearchRequest {
+  query: string;
+  source_type?: string | null;
+  top_k?: number | null;
+  similarity_threshold?: number | null;
+}
+
+export interface KnowledgeSearchResponse {
+  status: string;
+  total_found: number;
+  results: KnowledgeResultItem[];
+  citations: KnowledgeCitation[];
+}
+
+export interface SourceStatusSummary {
+  document_count: number;
+  last_indexed?: string | null;
+}
+
+export interface KnowledgeStatusResponse {
+  total_documents: number;
+  total_chunks: number;
+  last_indexed?: string | null;
+  sources: Record<string, SourceStatusSummary>;
+}
+
+export interface KnowledgeReindexResponse {
+  status: string;
+  documents_processed: number;
+  documents_indexed: number;
+  documents_skipped: number;
+  chunks_created: number;
+  duration_ms: number;
+  errors: string[];
+}
+
+export async function fetchKnowledgeStatus(): Promise<KnowledgeStatusResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/knowledge/status`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch knowledge status' }));
+    throw new Error(errorData.detail || `Failed to fetch knowledge status (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function searchKnowledge(request: KnowledgeSearchRequest): Promise<KnowledgeSearchResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/knowledge/search`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to execute knowledge search' }));
+    throw new Error(errorData.detail || `Knowledge search error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function reindexKnowledge(): Promise<KnowledgeReindexResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/knowledge/reindex`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to reindex knowledge' }));
+    throw new Error(errorData.detail || `Knowledge reindex error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
 

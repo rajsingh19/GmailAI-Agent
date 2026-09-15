@@ -35,6 +35,15 @@ from app.schemas.notification import (
     NotificationListResponse,
     NotificationMarkReadRequest,
 )
+from app.schemas.knowledge import (
+    KnowledgeCitation,
+    KnowledgeResultItem,
+    KnowledgeSearchRequest,
+    KnowledgeSearchResponse,
+    SourceStatusSummary,
+    KnowledgeStatusResponse,
+    KnowledgeReindexResponse,
+)
 
 __all__ = [
     "HealthResponse",
@@ -64,6 +73,14 @@ __all__ = [
     "NotificationResponse",
     "NotificationListResponse",
     "NotificationMarkReadRequest",
+    "KnowledgeCitation",
+    "KnowledgeResultItem",
+    "KnowledgeSearchRequest",
+    "KnowledgeSearchResponse",
+    "SourceStatusSummary",
+    "KnowledgeStatusResponse",
+    "KnowledgeReindexResponse",
 ]
+
 
 
