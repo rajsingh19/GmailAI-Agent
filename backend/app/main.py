@@ -15,6 +15,9 @@ from app.core.logging import logger
 from app.schemas.health import HealthResponse
 
 
+from app.services.scheduler_service import SchedulerService
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
@@ -32,8 +35,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Google OAuth configured with Client ID: %s...%s", settings.GOOGLE_CLIENT_ID[:8], settings.GOOGLE_CLIENT_ID[-4:])
     else:
         logger.warning("Google OAuth Client ID not found. Ensure credentials.json or env vars exist.")
+
+    # Start background scheduler
+    scheduler = SchedulerService.get_instance()
+    scheduler.start()
+
     yield
+
     logger.info("Shutting down %s...", settings.PROJECT_NAME)
+    scheduler.shutdown()
+
 
 
 def create_application() -> FastAPI:

@@ -4,13 +4,13 @@ A production-grade, multi-user Personal AI Assistant web application. It connect
 
 ---
 
-## Current Status: Milestone 4 Implemented & Test-Verified
+## Current Status: Milestone 5 Implemented & Test-Verified
 
 - [x] **Milestone 1 — Foundation**: Monorepo layout, FastAPI backend, React + TypeScript + Vite frontend, structured logging, health check endpoint, pytest test suite.
 - [x] **Milestone 2 — Google OAuth Authentication for Gmail**: Google OAuth 2.0 web-server flow, CSRF state protection, encrypted tokens at rest (AES-128 Fernet), server-side session cookies, multi-user isolation, Alembic database migrations, frontend connection management, and 23 comprehensive mocked tests.
 - [x] **Milestone 3 — Gmail Read Integration**: Read-only Gmail API integration (`/api/v1/gmail/profile`, `/api/v1/gmail/messages`, `/api/v1/gmail/messages/{message_id}`), single-call Batch API metadata retrieval, RFC 2047 MIME parsing, untrusted HTML sanitized text extraction, attachment metadata without downloading bytes, multi-user isolation, automatic token refresh, 55 passing backend tests, and real browser verification.
 - [x] **Milestone 4 — Google Calendar Read Integration**: Google Calendar API integration (`/api/v1/calendar/calendars`, `/api/v1/calendar/calendars/{calendar_id}`, `/api/v1/calendar/events`, `/api/v1/calendar/calendars/{calendar_id}/events/{event_id}`), incremental scope authorization (`https://www.googleapis.com/auth/calendar.readonly`), explicit scope verification, date-range filtering (RFC 3339), timezone preservation, all-day event handling, recurring event expansion (`singleEvents=True`), conference (Google Meet) & attendee metadata normalization, strict read-only enforcement, and 85 passing backend tests.
-- [ ] **Milestone 5 — Reminders**: Task creation and notification tracking.
+- [x] **Milestone 5 — Reminder & Task System**: Complete task management (CRUD, priorities, due dates, completion lifecycle), multi-schedule reminders (one-time and RFC 5545 recurrence rules), timezone & DST safety (America/New_York, Asia/Kolkata, UTC), APScheduler background runner with atomic DB claiming (`rowcount == 1`), in-app notification delivery with deterministic idempotency keys, bounded retries (max 3), overdue recovery policy, snooze options (`5m`, `15m`, `30m`, `1h`, `1d`), cancellation semantics, React UI dashboard cards (`TaskCard`, `ReminderCard`), and 135 passing backend tests.
 - [ ] **Milestone 6 — AI Agent**: Gemini LLM orchestrator with tool calling.
 - [ ] **Milestone 7 — Intelligent Scheduling**: Automatic clash detection and meeting suggestions.
 - [ ] **Milestone 8 — Proactive Monitoring**: Background scheduled jobs for incoming email analysis.

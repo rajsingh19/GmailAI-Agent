@@ -17,6 +17,24 @@ from app.schemas.calendar import (
     CalendarEventDetail,
     CalendarEventListResponse,
 )
+from app.schemas.task import (
+    TaskCreate,
+    TaskUpdate,
+    TaskResponse,
+    TaskListResponse,
+)
+from app.schemas.reminder import (
+    ReminderCreate,
+    ReminderUpdate,
+    ReminderSnooze,
+    ReminderResponse,
+    ReminderListResponse,
+)
+from app.schemas.notification import (
+    NotificationResponse,
+    NotificationListResponse,
+    NotificationMarkReadRequest,
+)
 
 __all__ = [
     "HealthResponse",
@@ -34,6 +52,18 @@ __all__ = [
     "CalendarEventSummary",
     "CalendarEventDetail",
     "CalendarEventListResponse",
+    "TaskCreate",
+    "TaskUpdate",
+    "TaskResponse",
+    "TaskListResponse",
+    "ReminderCreate",
+    "ReminderUpdate",
+    "ReminderSnooze",
+    "ReminderResponse",
+    "ReminderListResponse",
+    "NotificationResponse",
+    "NotificationListResponse",
+    "NotificationMarkReadRequest",
 ]
 
 

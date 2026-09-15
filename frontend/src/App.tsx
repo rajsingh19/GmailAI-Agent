@@ -5,6 +5,8 @@ import { HealthStatusCard } from './components/HealthStatusCard';
 import { GoogleConnectionCard } from './components/GoogleConnectionCard';
 import { GmailInboxCard } from './components/GmailInboxCard';
 import { CalendarCard } from './components/CalendarCard';
+import { TaskCard } from './components/TaskCard';
+import { ReminderCard } from './components/ReminderCard';
 import { SystemOverview } from './components/SystemOverview';
 
 export const App: React.FC = () => {
@@ -79,7 +81,7 @@ export const App: React.FC = () => {
               <h1 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
                 Personal AI Assistant
                 <span className="hidden sm:inline-flex items-center text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                  Milestone 4 Active
+                  Milestone 5 Active
                 </span>
               </h1>
             </div>
@@ -132,7 +134,7 @@ export const App: React.FC = () => {
             Personal AI Assistant Dashboard
           </h2>
           <p className="text-sm sm:text-base text-slate-400 mt-2 max-w-2xl leading-relaxed">
-            Connect your personal Google Account via OAuth 2.0 to grant the AI assistant read-only access to analyze incoming emails and calendar schedules.
+            Manage your daily tasks, scheduled reminders, in-app alerts, and connected Google services with strictly isolated multi-user security.
           </p>
         </div>
 
@@ -145,6 +147,16 @@ export const App: React.FC = () => {
             error={authError}
           />
         </section>
+
+        {/* Milestone 5: Tasks & Reminders Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <section aria-labelledby="tasks-heading" className="h-full">
+            <TaskCard isAuthenticated={authStatus?.authenticated ?? false} />
+          </section>
+          <section aria-labelledby="reminders-heading" className="h-full">
+            <ReminderCard isAuthenticated={authStatus?.authenticated ?? false} />
+          </section>
+        </div>
 
         {/* Milestone 3: Gmail Inbox Card */}
         <section aria-labelledby="gmail-inbox-heading">

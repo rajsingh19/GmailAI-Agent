@@ -52,6 +52,24 @@ class User(Base, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    tasks: Mapped[List["Task"]] = relationship(
+        "Task",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    reminders: Mapped[List["Reminder"]] = relationship(
+        "Reminder",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    notifications: Mapped[List["Notification"]] = relationship(
+        "Notification",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email}>"

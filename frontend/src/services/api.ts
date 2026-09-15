@@ -423,4 +423,343 @@ export async function fetchCalendarEventDetail(
   return await response.json();
 }
 
+// ============================================================================
+// Tasks & Reminders API Integration (Milestone 5)
+// ============================================================================
+
+export interface Task {
+  id: string;
+  user_id: string;
+  title: string;
+  description?: string | null;
+  status: 'pending' | 'completed' | 'cancelled';
+  priority: 'low' | 'medium' | 'high';
+  due_at?: string | null;
+  timezone?: string | null;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskListResponse {
+  items: Task[];
+  total: number;
+}
+
+export interface TaskCreateInput {
+  title: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  due_at?: string | null;
+  timezone?: string;
+}
+
+export interface TaskUpdateInput {
+  title?: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  status?: 'pending' | 'completed' | 'cancelled';
+  due_at?: string | null;
+  timezone?: string;
+}
+
+export interface Reminder {
+  id: string;
+  user_id: string;
+  task_id?: string | null;
+  title: string;
+  message?: string | null;
+  remind_at: string;
+  timezone: string;
+  recurrence_rule?: string | null;
+  status: 'scheduled' | 'processing' | 'triggered' | 'snoozed' | 'cancelled' | 'failed';
+  last_triggered_at?: string | null;
+  next_trigger_at?: string | null;
+  snoozed_until?: string | null;
+  retry_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReminderListResponse {
+  items: Reminder[];
+  total: number;
+}
+
+export interface ReminderCreateInput {
+  title: string;
+  message?: string;
+  remind_at: string;
+  timezone?: string;
+  recurrence_rule?: string;
+  task_id?: string;
+}
+
+export interface ReminderSnoozeInput {
+  duration?: '5m' | '15m' | '30m' | '1h' | '1d';
+  snooze_until?: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  reminder_id?: string | null;
+  idempotency_key: string;
+  title: string;
+  message?: string | null;
+  status: 'unread' | 'read';
+  created_at: string;
+  read_at?: string | null;
+}
+
+export interface NotificationListResponse {
+  items: Notification[];
+  total: number;
+  unread_count: number;
+}
+
+export async function fetchTasks(params?: {
+  status?: string;
+  priority?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<TaskListResponse> {
+  const queryParams = new URLSearchParams();
+  if (params?.status) queryParams.set('status', params.status);
+  if (params?.priority) queryParams.set('priority', params.priority);
+  if (params?.limit) queryParams.set('limit', params.limit.toString());
+  if (params?.offset) queryParams.set('offset', params.offset.toString());
+
+  const url = `${API_BASE_URL}/api/v1/tasks${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch tasks' }));
+    throw new Error(errorData.detail || `Failed to fetch tasks (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function createTask(input: TaskCreateInput): Promise<Task> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/tasks`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to create task' }));
+    throw new Error(errorData.detail || `Failed to create task (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function updateTask(taskId: string, input: TaskUpdateInput): Promise<Task> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/tasks/${encodeURIComponent(taskId)}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to update task' }));
+    throw new Error(errorData.detail || `Failed to update task (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function completeTask(taskId: string): Promise<Task> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/tasks/${encodeURIComponent(taskId)}/complete`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to complete task' }));
+    throw new Error(errorData.detail || `Failed to complete task (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/tasks/${encodeURIComponent(taskId)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to delete task' }));
+    throw new Error(errorData.detail || `Failed to delete task (HTTP ${response.status})`);
+  }
+}
+
+export async function fetchReminders(params?: {
+  status?: string;
+  task_id?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<ReminderListResponse> {
+  const queryParams = new URLSearchParams();
+  if (params?.status) queryParams.set('status', params.status);
+  if (params?.task_id) queryParams.set('task_id', params.task_id);
+  if (params?.limit) queryParams.set('limit', params.limit.toString());
+  if (params?.offset) queryParams.set('offset', params.offset.toString());
+
+  const url = `${API_BASE_URL}/api/v1/reminders${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch reminders' }));
+    throw new Error(errorData.detail || `Failed to fetch reminders (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function createReminder(input: ReminderCreateInput): Promise<Reminder> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/reminders`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to create reminder' }));
+    throw new Error(errorData.detail || `Failed to create reminder (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function snoozeReminder(reminderId: string, input: ReminderSnoozeInput): Promise<Reminder> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/reminders/${encodeURIComponent(reminderId)}/snooze`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to snooze reminder' }));
+    throw new Error(errorData.detail || `Failed to snooze reminder (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function cancelReminder(reminderId: string): Promise<Reminder> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/reminders/${encodeURIComponent(reminderId)}/cancel`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to cancel reminder' }));
+    throw new Error(errorData.detail || `Failed to cancel reminder (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function deleteReminder(reminderId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/reminders/${encodeURIComponent(reminderId)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to delete reminder' }));
+    throw new Error(errorData.detail || `Failed to delete reminder (HTTP ${response.status})`);
+  }
+}
+
+export async function fetchNotifications(params?: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<NotificationListResponse> {
+  const queryParams = new URLSearchParams();
+  if (params?.status) queryParams.set('status', params.status);
+  if (params?.limit) queryParams.set('limit', params.limit.toString());
+  if (params?.offset) queryParams.set('offset', params.offset.toString());
+
+  const url = `${API_BASE_URL}/api/v1/notifications${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch notifications' }));
+    throw new Error(errorData.detail || `Failed to fetch notifications (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function markNotificationsRead(notificationIds?: string[]): Promise<{ marked_read_count: number }> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/notifications/read`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ notification_ids: notificationIds || null }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to mark notifications read' }));
+    throw new Error(errorData.detail || `Failed to mark notifications read (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function deleteNotification(notificationId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/notifications/${encodeURIComponent(notificationId)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to delete notification' }));
+    throw new Error(errorData.detail || `Failed to delete notification (HTTP ${response.status})`);
+  }
+}
+
+
 
