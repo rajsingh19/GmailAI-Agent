@@ -958,3 +958,255 @@ export async function reindexKnowledge(): Promise<KnowledgeReindexResponse> {
   return await response.json();
 }
 
+// ==========================================
+// Milestone 8: Proactive AI Assistant Interfaces & API
+// ==========================================
+
+export interface SuggestedAction {
+  action_type: string;
+  target_resource: string;
+  target_id: string;
+  risk_level: 'READ' | 'LOW_RISK_WRITE' | 'HIGH_RISK_WRITE';
+  display_label: string;
+  action_payload: Record<string, any>;
+}
+
+export interface ProactiveCitation {
+  source_type: string;
+  source_id: string;
+  title: string;
+  snippet?: string;
+  reference_time?: string;
+}
+
+export interface ProactiveNotification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string | null;
+  notification_type: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  source_type: string | null;
+  source_id: string | null;
+  status: string;
+  created_at: string;
+  read_at?: string | null;
+  dismissed_at?: string | null;
+  snoozed_until?: string | null;
+  suggested_action?: SuggestedAction | null;
+  citations: ProactiveCitation[];
+  metadata: Record<string, any>;
+}
+
+export interface UserPreferences {
+  proactive_enabled: boolean;
+  calendar_alerts_enabled: boolean;
+  task_alerts_enabled: boolean;
+  reminder_alerts_enabled: boolean;
+  email_alerts_enabled: boolean;
+  quiet_hours_enabled: boolean;
+  quiet_hours_start: string;
+  quiet_hours_end: string;
+  defer_high_priority_in_quiet_hours: boolean;
+  user_timezone: string;
+  min_priority: 'low' | 'medium' | 'high' | 'urgent';
+  max_proactive_per_day: number;
+  cooldown_minutes: number;
+  last_gmail_proactive_check_at?: string | null;
+  updated_at?: string;
+}
+
+export interface ProactiveStatusResponse {
+  proactive_enabled: boolean;
+  total_active_notifications: number;
+  quiet_hours_active: boolean;
+  user_timezone: string;
+  last_check_at: string | null;
+  category_status: {
+    calendar: boolean;
+    tasks: boolean;
+    reminders: boolean;
+    gmail: boolean;
+  };
+}
+
+export interface ActionExecuteRequest {
+  notification_id: string;
+  action_type: string;
+  target_id: string;
+  confirmation_token?: string;
+}
+
+export interface ActionExecuteResponse {
+  status: 'completed' | 'confirmation_required' | 'failed';
+  result?: any;
+  message: string;
+  confirmation_challenge?: {
+    action: string;
+    details: Record<string, any>;
+    challenge_id: string;
+    confirmation_token: string;
+    expires_at: string;
+  };
+}
+
+export interface ProactiveTriggerResponse {
+  status: string;
+  candidates_detected: number;
+  notifications_created: number;
+  details: Record<string, any>;
+}
+
+export async function fetchProactiveStatus(): Promise<ProactiveStatusResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/proactive/status`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch proactive status' }));
+    throw new Error(errorData.detail || `Failed to fetch proactive status (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function fetchProactivePreferences(): Promise<UserPreferences> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/proactive/preferences`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch proactive preferences' }));
+    throw new Error(errorData.detail || `Failed to fetch proactive preferences (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function updateProactivePreferences(prefs: Partial<UserPreferences>): Promise<UserPreferences> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/proactive/preferences`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(prefs),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to update preferences' }));
+    throw new Error(errorData.detail || `Update preferences error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function fetchProactiveNotifications(params?: {
+  active_only?: boolean;
+  limit?: number;
+}): Promise<ProactiveNotification[]> {
+  const query = new URLSearchParams();
+  if (params?.active_only !== undefined) {
+    query.set('active_only', String(params.active_only));
+  }
+  if (params?.limit !== undefined) {
+    query.set('limit', String(params.limit));
+  }
+
+  const url = `${API_BASE_URL}/api/v1/proactive/notifications${query.toString() ? '?' + query.toString() : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch proactive notifications' }));
+    throw new Error(errorData.detail || `Failed to fetch proactive notifications (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function markProactiveNotificationRead(notificationId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/proactive/notifications/${notificationId}/read`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to mark notification read' }));
+    throw new Error(errorData.detail || `Mark read error (HTTP ${response.status})`);
+  }
+}
+
+export async function dismissProactiveNotification(notificationId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/proactive/notifications/${notificationId}/dismiss`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to dismiss notification' }));
+    throw new Error(errorData.detail || `Dismiss error (HTTP ${response.status})`);
+  }
+}
+
+export async function snoozeProactiveNotification(notificationId: string, snoozeMinutes: number = 60): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/proactive/notifications/${notificationId}/snooze`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ snooze_minutes: snoozeMinutes }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to snooze notification' }));
+    throw new Error(errorData.detail || `Snooze error (HTTP ${response.status})`);
+  }
+}
+
+export async function executeProactiveAction(request: ActionExecuteRequest): Promise<ActionExecuteResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/proactive/actions/execute`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to execute action' }));
+    throw new Error(errorData.detail || `Action execute error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function triggerProactiveCheck(): Promise<ProactiveTriggerResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/proactive/trigger-check`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to trigger proactive check' }));
+    throw new Error(errorData.detail || `Trigger check error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+

@@ -63,10 +63,12 @@ async def test_scheduler_singleton_and_duplicate_startup_prevention():
     scheduler_service.start()
     assert scheduler_service.is_running
 
-    # Verify exactly 1 job registered
+    # Verify registered jobs
     jobs = scheduler_service._scheduler.get_jobs()
-    assert len(jobs) == 1
-    assert jobs[0].id == "poll_due_reminders_job"
+    job_ids = [j.id for j in jobs]
+    assert "poll_due_reminders_job" in job_ids
+    assert "proactive_monitor_job" in job_ids
+    assert len(jobs) == 2
 
     # Shutdown
     scheduler_service.shutdown()

@@ -44,6 +44,17 @@ from app.schemas.knowledge import (
     KnowledgeStatusResponse,
     KnowledgeReindexResponse,
 )
+from app.schemas.proactive import (
+    SuggestedAction,
+    UserPreferenceBase,
+    UserPreferenceUpdate,
+    UserPreferenceResponse,
+    ProactiveNotificationResponse,
+    ActionExecuteRequest,
+    ActionExecuteResponse,
+    ProactiveStatusResponse,
+    ProactiveTriggerResponse,
+)
 
 __all__ = [
     "HealthResponse",
@@ -80,7 +91,17 @@ __all__ = [
     "SourceStatusSummary",
     "KnowledgeStatusResponse",
     "KnowledgeReindexResponse",
+    "SuggestedAction",
+    "UserPreferenceBase",
+    "UserPreferenceUpdate",
+    "UserPreferenceResponse",
+    "ProactiveNotificationResponse",
+    "ActionExecuteRequest",
+    "ActionExecuteResponse",
+    "ProactiveStatusResponse",
+    "ProactiveTriggerResponse",
 ]
+
 
 
 

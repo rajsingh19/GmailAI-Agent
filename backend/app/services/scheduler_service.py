@@ -46,8 +46,9 @@ class SchedulerService:
                 pass
         cls._instance = None
 
-    def __init__(self, check_interval_seconds: int = 5):
+    def __init__(self, check_interval_seconds: int = 5, proactive_interval_seconds: int = 60):
         self.check_interval_seconds = check_interval_seconds
+        self.proactive_interval_seconds = proactive_interval_seconds
 
     @property
     def is_running(self) -> bool:
@@ -65,7 +66,7 @@ class SchedulerService:
         if self._scheduler is None:
             self._scheduler = AsyncIOScheduler()
 
-        # Ensure no duplicate jobs
+        # 1. Reminders polling job
         existing_job = self._scheduler.get_job("poll_due_reminders_job")
         if not existing_job:
             self._scheduler.add_job(
@@ -78,10 +79,23 @@ class SchedulerService:
                 coalesce=True,
             )
 
+        # 2. Proactive Assistant evaluation job
+        existing_proactive_job = self._scheduler.get_job("proactive_monitor_job")
+        if not existing_proactive_job:
+            self._scheduler.add_job(
+                self.process_proactive_cycle,
+                "interval",
+                seconds=self.proactive_interval_seconds,
+                id="proactive_monitor_job",
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
+            )
+
         if not self._scheduler.running:
             self._scheduler.start()
             self._is_running = True
-            logger.info("SchedulerService started successfully.")
+            logger.info("SchedulerService started successfully with Reminders & Proactive jobs.")
 
     def shutdown(self, wait: bool = False) -> None:
         """Stops the scheduler gracefully."""
@@ -93,6 +107,17 @@ class SchedulerService:
                 logger.warning(f"Error shutting down scheduler: {e}")
         self._is_running = False
         self._scheduler = None
+
+    async def process_proactive_cycle(self) -> dict:
+        """Invokes ProactiveMonitorService to run periodic proactive evaluation."""
+        try:
+            from app.services.proactive import ProactiveMonitorService
+            service = ProactiveMonitorService.get_instance()
+            return await service.run_proactive_cycle()
+        except Exception as exc:
+            logger.exception(f"Error executing proactive monitor cycle: {exc}")
+            return {"status": "error", "message": str(exc)}
+
 
     async def process_due_reminders(self) -> int:
         """

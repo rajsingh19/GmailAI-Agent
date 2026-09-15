@@ -4,6 +4,7 @@ from app.ai.tools.notification_tools import register_notification_tools
 from app.ai.tools.gmail_tools import register_gmail_tools
 from app.ai.tools.calendar_tools import register_calendar_tools
 from app.ai.tools.knowledge_tools import register_knowledge_tools
+from app.ai.tools.proactive_tools import register_proactive_tools
 
 
 def register_all_tools() -> None:
@@ -14,8 +15,10 @@ def register_all_tools() -> None:
     register_gmail_tools()
     register_calendar_tools()
     register_knowledge_tools()
+    register_proactive_tools()
 
 
 # Register upon import
 register_all_tools()
+
 

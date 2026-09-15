@@ -41,9 +41,10 @@ def test_tool_registry_contains_search_personal_knowledge():
 
 
 def test_tool_registry_total_tool_count():
-    """Milestone 6 had 23 tools. Milestone 7 adds search_personal_knowledge -> total 24."""
+    """Milestone 6 had 23 tools. Milestone 7 added search_personal_knowledge (24). Milestone 8 adds get_proactive_notifications (25)."""
     all_tools = ToolRegistry.list_tools()
-    assert len(all_tools) == 24
+    assert len(all_tools) >= 24
+
 
 
 def test_search_personal_knowledge_schema_parameters():

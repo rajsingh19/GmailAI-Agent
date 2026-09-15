@@ -50,19 +50,6 @@ class MockFixedEmbeddingProvider(EmbeddingProvider):
 
 
 
-@pytest.fixture
-async def pg_session() -> AsyncGenerator[AsyncSession, None]:
-    """Provides a session connected to the real PostgreSQL database."""
-    pg_url = settings.DATABASE_URL
-    if not pg_url.startswith("postgresql"):
-        pg_url = "postgresql+asyncpg://ai_user:ai_password@localhost:5438/ai_assistant"
-
-    engine = create_async_engine(pg_url, echo=False)
-    session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
-    async with session_factory() as session:
-        yield session
-    await engine.dispose()
-
 
 def test_vector_dimension_constants():
     """Verify system config specifies 768 dimensions for text-embedding-004."""

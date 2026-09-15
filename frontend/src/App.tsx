@@ -8,6 +8,7 @@ import { CalendarCard } from './components/CalendarCard';
 import { TaskCard } from './components/TaskCard';
 import { ReminderCard } from './components/ReminderCard';
 import { PersonalKnowledgeCard } from './components/PersonalKnowledgeCard';
+import { ProactiveAssistantCard } from './components/ProactiveAssistantCard';
 import { AgentChat } from './components/AgentChat';
 import { SystemOverview } from './components/SystemOverview';
 
@@ -82,8 +83,8 @@ export const App: React.FC = () => {
             <div>
               <h1 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
                 Personal AI Assistant
-                <span className="hidden sm:inline-flex items-center text-[10px] font-semibold uppercase tracking-wider bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full">
-                  Milestone 7 Active
+                <span className="hidden sm:inline-flex items-center text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                  Milestone 8 Proactive AI
                 </span>
               </h1>
             </div>
@@ -136,9 +137,21 @@ export const App: React.FC = () => {
             Personal AI Assistant Dashboard
           </h2>
           <p className="text-sm sm:text-base text-slate-400 mt-2 max-w-2xl leading-relaxed">
-            Manage your daily tasks, scheduled reminders, in-app alerts, connected Google services, and Personal Knowledge RAG with safe AI tool-calling and strictly isolated multi-user security.
+            Manage your daily tasks, scheduled reminders, in-app alerts, connected Google services, Personal Knowledge RAG, and safe Proactive Assistant monitoring with strictly isolated multi-user security.
           </p>
         </div>
+
+        {/* Milestone 8: Safe Proactive AI Assistant Card */}
+        <section aria-labelledby="proactive-assistant-heading">
+          <ProactiveAssistantCard
+            onNotify={(msg, type) =>
+              setBannerNotice({
+                message: msg,
+                type: type === 'error' ? 'error' : 'success',
+              })
+            }
+          />
+        </section>
 
         {/* Milestone 2: Google OAuth Connection Card */}
         <section aria-labelledby="google-connection-heading">
@@ -159,6 +172,7 @@ export const App: React.FC = () => {
         <section aria-labelledby="agent-chat-heading">
           <AgentChat isAuthenticated={authStatus?.authenticated ?? false} />
         </section>
+
 
         {/* Milestone 5: Tasks & Reminders Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
