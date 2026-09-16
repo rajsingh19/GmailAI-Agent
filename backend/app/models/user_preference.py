@@ -32,6 +32,39 @@ class UserPreference(Base, TimestampMixin):
         default=False,
         nullable=False,
     )
+    # Long-Term Personal Memory Master Toggle (Milestone 11 Opt-in Default: False)
+    memory_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+    # Personalization Intelligence Master Toggle (Milestone 12 Opt-in Default: False)
+    personalization_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+    # Personalization Level: NONE, LOW, MEDIUM, HIGH (Default: MEDIUM)
+    personalization_level: Mapped[str] = mapped_column(
+        String(20),
+        default="MEDIUM",
+        nullable=False,
+    )
+    personalize_response_style: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+    personalize_project_context: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+    personalize_workflow_habits: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
     # Category Toggles
     calendar_alerts_enabled: Mapped[bool] = mapped_column(
         Boolean,

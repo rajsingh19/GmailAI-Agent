@@ -156,6 +156,28 @@ class Settings(BaseSettings):
     RATE_LIMIT_VOICE_LIMIT: int = 20
     RATE_LIMIT_VOICE_WINDOW: int = 60
 
+    # Milestone 11: Long-Term Personal Memory
+    MEMORY_ENABLED_DEFAULT: bool = False
+    MEMORY_MAX_ITEMS_PER_CONTEXT: int = 10
+    MEMORY_MAX_CONTEXT_CHARS: int = 2000
+    MEMORY_SEARCH_LIMIT: int = 20
+    MEMORY_MAX_KEY_LENGTH: int = 100
+    MEMORY_MAX_VALUE_LENGTH: int = 2000
+    MEMORY_CONFIDENCE_THRESHOLD: float = 0.5
+    RATE_LIMIT_MEMORY_LIMIT: int = 30
+    RATE_LIMIT_MEMORY_WINDOW: int = 60
+
+    # Milestone 12: Personalization Intelligence & Policy Layer
+    PERSONALIZATION_ENABLED_DEFAULT: bool = False
+    PERSONALIZATION_LEVEL_DEFAULT: str = "MEDIUM"
+    PERSONALIZATION_RELEVANCE_THRESHOLD: float = 15.0
+    PERSONALIZATION_MAX_CONTEXT_CHARS: int = 1000
+    PERSONALIZATION_PREVIEW_LIMIT: int = 10
+    PERSONALIZATION_SESSION_OVERRIDE_TTL_SECONDS: int = 3600
+    PERSONALIZATION_CACHE_TTL_SECONDS: int = 300
+    RATE_LIMIT_PERSONALIZATION_LIMIT: int = 30
+    RATE_LIMIT_PERSONALIZATION_WINDOW: int = 60
+
     @property
     def effective_model_name(self) -> str:
         """Returns the configured model name, prioritizing GEMINI_MODEL over AI_MODEL_NAME."""

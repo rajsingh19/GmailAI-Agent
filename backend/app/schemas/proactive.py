@@ -24,6 +24,7 @@ class SuggestedAction(BaseModel):
 
 class UserPreferenceBase(BaseModel):
     proactive_enabled: bool = False
+    memory_enabled: bool = False
     calendar_alerts_enabled: bool = True
     task_alerts_enabled: bool = True
     reminder_alerts_enabled: bool = True
@@ -71,6 +72,7 @@ class UserPreferenceBase(BaseModel):
 
 class UserPreferenceUpdate(BaseModel):
     proactive_enabled: Optional[bool] = None
+    memory_enabled: Optional[bool] = None
     calendar_alerts_enabled: Optional[bool] = None
     task_alerts_enabled: Optional[bool] = None
     reminder_alerts_enabled: Optional[bool] = None

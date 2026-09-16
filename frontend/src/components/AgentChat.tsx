@@ -38,6 +38,7 @@ interface DisplayMessage {
   toolsCalled?: ToolActivityInfo[];
   confirmation?: ConfirmationChallenge | null;
   requiresConfirmation?: boolean;
+  personalization?: any | null;
 }
 
 const QUICK_PROMPTS = [
@@ -124,6 +125,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
       }
 
       const assistantMsgId = `asst-${Date.now()}`;
+      const pMeta = response.personalization_metadata || response.metadata?.personalization_metadata;
       const assistantMsg: DisplayMessage = {
         id: assistantMsgId,
         role: 'assistant',
@@ -132,6 +134,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
         toolsCalled: response.tool_activities,
         requiresConfirmation: Boolean(response.confirmation_required),
         confirmation: response.confirmation_required,
+        personalization: pMeta,
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
@@ -353,6 +356,20 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
 
               {/* Message Content */}
               <div className="whitespace-pre-wrap font-sans text-sm">{msg.content}</div>
+
+              {/* M12 Personalization Chip */}
+              {msg.personalization?.applied_keys && msg.personalization.applied_keys.length > 0 && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/35 px-2 py-0.5 rounded-full"
+                    title={msg.personalization.reason || 'Personalized preferences applied'}
+                  >
+                    <Sparkles className="w-3 h-3 text-indigo-400" />
+                    <span>Personalized ✦</span>
+                    <span className="text-indigo-400/80 lowercase font-mono">({msg.personalization.applied_keys.join(', ')})</span>
+                  </span>
+                </div>
+              )}
 
               {/* Tool Execution Badges */}
               {msg.toolsCalled && msg.toolsCalled.length > 0 && (

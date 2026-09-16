@@ -5,6 +5,7 @@ from app.ai.tools.gmail_tools import register_gmail_tools
 from app.ai.tools.calendar_tools import register_calendar_tools
 from app.ai.tools.knowledge_tools import register_knowledge_tools
 from app.ai.tools.proactive_tools import register_proactive_tools
+from app.ai.tools.memory_tools import register_memory_tools
 
 
 def register_all_tools() -> None:
@@ -16,6 +17,7 @@ def register_all_tools() -> None:
     register_calendar_tools()
     register_knowledge_tools()
     register_proactive_tools()
+    register_memory_tools()
 
 
 # Register upon import

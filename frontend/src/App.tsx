@@ -9,6 +9,8 @@ import { TaskCard } from './components/TaskCard';
 import { ReminderCard } from './components/ReminderCard';
 import { PersonalKnowledgeCard } from './components/PersonalKnowledgeCard';
 import { ProactiveAssistantCard } from './components/ProactiveAssistantCard';
+import { MemoryManager } from './components/MemoryManager';
+import { PersonalizationSettings } from './components/PersonalizationSettings';
 import { AgentChat } from './components/AgentChat';
 import { SystemOverview } from './components/SystemOverview';
 
@@ -166,6 +168,19 @@ export const App: React.FC = () => {
         {/* Milestone 7: Personal Knowledge RAG Card */}
         <section aria-labelledby="personal-knowledge-heading">
           <PersonalKnowledgeCard onNotify={(msg, type) => setBannerNotice({ message: msg, type: type === 'info' ? 'success' : type })} />
+        </section>
+
+        {/* Milestone 11: Long-Term Personal Memory Card */}
+        <section aria-labelledby="personal-memory-heading">
+          <MemoryManager
+            isAuthenticated={authStatus?.authenticated ?? false}
+            onNotify={(msg, type) => setBannerNotice({ message: msg, type: type === 'info' ? 'success' : type })}
+          />
+        </section>
+
+        {/* Milestone 12: Personalization Intelligence & Policy Settings */}
+        <section aria-labelledby="personalization-heading">
+          <PersonalizationSettings />
         </section>
 
         {/* Milestone 6: AI Agent Core & Safe Tool-Calling System */}

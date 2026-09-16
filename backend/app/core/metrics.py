@@ -66,6 +66,34 @@ class MetricsRegistry:
                 "Total number of voice cancellations",
                 "counter",
             ),
+            "memory_operations_total": (
+                "Total number of personal memory operations executed",
+                "counter",
+            ),
+            "personalization_requests_total": (
+                "Total number of personalization requests evaluated",
+                "counter",
+            ),
+            "personalization_applied_total": (
+                "Total number of personalized context items applied",
+                "counter",
+            ),
+            "personalization_skipped_total": (
+                "Total number of personalization requests skipped",
+                "counter",
+            ),
+            "personalization_override_total": (
+                "Total number of personalization session/turn overrides triggered",
+                "counter",
+            ),
+            "personalization_latency_seconds": (
+                "Histogram of personalization policy latency in seconds",
+                "histogram",
+            ),
+            "personalization_context_chars": (
+                "Histogram of personalization context character length",
+                "histogram",
+            ),
         }
 
     def _sanitize_labels(self, labels: Optional[Dict[str, str]]) -> Tuple[Tuple[str, str], ...]:
@@ -220,5 +248,9 @@ def classify_endpoint_group(path: str) -> str:
         return "voice"
     elif "/knowledge" in path:
         return "knowledge"
+    elif "/memories" in path:
+        return "memories"
+    elif "/personalization" in path:
+        return "personalization"
     else:
         return "other"

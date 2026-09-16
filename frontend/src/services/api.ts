@@ -789,6 +789,15 @@ export interface AgentChatRequest {
   message: string;
   history?: AgentChatMessage[] | null;
   confirmation_token?: string | null;
+  session_id?: string | null;
+  disable_personalization?: boolean;
+}
+
+export interface PersonalizationMetadata {
+  level: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
+  applied_keys: string[];
+  categories: string[];
+  reason: string;
 }
 
 export interface AgentChatResponse {
@@ -800,8 +809,10 @@ export interface AgentChatResponse {
     model?: string;
     duration_ms?: number;
     tool_calls_count?: number;
+    personalization_metadata?: PersonalizationMetadata;
     [key: string]: any;
   };
+  personalization_metadata?: PersonalizationMetadata | null;
 }
 
 export interface ToolDefinitionSchema {
@@ -1000,6 +1011,7 @@ export interface ProactiveNotification {
 
 export interface UserPreferences {
   proactive_enabled: boolean;
+  memory_enabled?: boolean;
   calendar_alerts_enabled: boolean;
   task_alerts_enabled: boolean;
   reminder_alerts_enabled: boolean;
@@ -1209,4 +1221,351 @@ export async function triggerProactiveCheck(): Promise<ProactiveTriggerResponse>
 
   return await response.json();
 }
+
+// ==========================================
+// Milestone 11: Long-Term Personal Memory & Personalization API
+// ==========================================
+
+export type MemoryCategory =
+  | 'user_preference'
+  | 'user_fact'
+  | 'project_context'
+  | 'workflow_preference'
+  | 'explicit_user_memory';
+
+export type MemoryConfidence =
+  | 'EXPLICIT'
+  | 'HIGH_CONFIDENCE'
+  | 'MEDIUM_CONFIDENCE'
+  | 'LOW_CONFIDENCE';
+
+export interface MemoryItem {
+  id: string;
+  user_id: string;
+  category: MemoryCategory;
+  key: string;
+  value: string;
+  description: string | null;
+  confidence: MemoryConfidence;
+  confidence_score: number;
+  source: string;
+  source_reference: string | null;
+  explicitly_confirmed: boolean;
+  active: boolean;
+  last_confirmed_at: string;
+  memory_metadata: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryListResponse {
+  status: string;
+  total: number;
+  count: number;
+  items: MemoryItem[];
+}
+
+export interface MemorySearchResponse {
+  status: string;
+  total_found: number;
+  results: MemoryItem[];
+}
+
+export interface MemoryStatsResponse {
+  total_memories: number;
+  active_memories: number;
+  inactive_memories: number;
+  memory_enabled: boolean;
+  by_category: Record<string, number>;
+  by_confidence: Record<string, number>;
+}
+
+export interface MemoryCreateRequest {
+  category: MemoryCategory;
+  key: string;
+  value: string;
+  description?: string;
+  confidence?: MemoryConfidence;
+  source?: string;
+  source_reference?: string;
+  explicitly_confirmed?: boolean;
+}
+
+export interface MemoryUpdateRequest {
+  value?: string;
+  description?: string;
+  category?: MemoryCategory;
+  active?: boolean;
+  explicitly_confirmed?: boolean;
+  confidence?: MemoryConfidence;
+}
+
+export async function fetchMemories(params?: {
+  category?: string;
+  active?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<MemoryListResponse> {
+  const queryParams = new URLSearchParams();
+  if (params?.category) queryParams.append('category', params.category);
+  if (params?.active !== undefined) queryParams.append('active', String(params.active));
+  if (params?.limit) queryParams.append('limit', String(params.limit));
+  if (params?.offset) queryParams.append('offset', String(params.offset));
+
+  const qs = queryParams.toString();
+  const url = `${API_BASE_URL}/api/v1/memories${qs ? `?${qs}` : ''}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to fetch memories' }));
+    throw new Error(err.detail || `Memory fetch error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function createMemory(request: MemoryCreateRequest): Promise<MemoryItem> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/memories`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to create memory' }));
+    throw new Error(err.detail || `Memory creation error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function searchMemories(query: string, category?: string): Promise<MemorySearchResponse> {
+  const queryParams = new URLSearchParams({ query });
+  if (category) queryParams.append('category', category);
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/memories/search?${queryParams.toString()}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to search memories' }));
+    throw new Error(err.detail || `Memory search error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function fetchMemoryStats(): Promise<MemoryStatsResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/memories/stats`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to fetch memory stats' }));
+    throw new Error(err.detail || `Memory stats error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function getMemory(memoryId: string): Promise<MemoryItem> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/memories/${memoryId}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Memory not found' }));
+    throw new Error(err.detail || `Memory fetch error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function updateMemory(memoryId: string, update: MemoryUpdateRequest): Promise<MemoryItem> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/memories/${memoryId}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(update),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to update memory' }));
+    throw new Error(err.detail || `Memory update error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function deactivateMemory(memoryId: string): Promise<MemoryItem> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/memories/${memoryId}/deactivate`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to deactivate memory' }));
+    throw new Error(err.detail || `Memory deactivate error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function deleteMemory(memoryId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/memories/${memoryId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to delete memory' }));
+    throw new Error(err.detail || `Memory delete error (HTTP ${response.status})`);
+  }
+}
+
+// ============================================================================
+// MILESTONE 12: PERSONALIZATION INTELLIGENCE & POLICY
+// ============================================================================
+
+export type PersonalizationLevelType = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface PersonalizationConfigResponse {
+  personalization_enabled: boolean;
+  personalization_level: PersonalizationLevelType;
+  personalize_response_style: boolean;
+  personalize_project_context: boolean;
+  personalize_workflow_habits: boolean;
+}
+
+export interface PersonalizationConfigUpdate {
+  personalization_enabled?: boolean;
+  personalization_level?: PersonalizationLevelType;
+  personalize_response_style?: boolean;
+  personalize_project_context?: boolean;
+  personalize_workflow_habits?: boolean;
+}
+
+export interface PersonalizationPreviewItem {
+  category: string;
+  key: string;
+  relevance_score: number;
+  is_selected: boolean;
+  selection_reason: string;
+}
+
+export interface PersonalizationPreviewResponse {
+  query: string;
+  items: PersonalizationPreviewItem[];
+}
+
+export interface PersonalizationSessionOverrideResponse {
+  session_id: string;
+  personalization_disabled: boolean;
+  message: string;
+}
+
+export async function fetchPersonalizationConfig(): Promise<PersonalizationConfigResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/personalization/config`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to fetch personalization config' }));
+    throw new Error(err.detail || `Personalization config error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function updatePersonalizationConfig(
+  update: PersonalizationConfigUpdate
+): Promise<PersonalizationConfigResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/personalization/config`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(update),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to update personalization config' }));
+    throw new Error(err.detail || `Personalization update error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function previewPersonalization(
+  query: string,
+  limit: number = 10
+): Promise<PersonalizationPreviewResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/personalization/preview`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ query, limit }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to preview personalization' }));
+    throw new Error(err.detail || `Personalization preview error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function setPersonalizationSessionOverride(
+  sessionId: string,
+  disablePersonalization: boolean
+): Promise<PersonalizationSessionOverrideResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/personalization/session-override`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      session_id: sessionId,
+      disable_personalization: disablePersonalization,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to set session override' }));
+    throw new Error(err.detail || `Personalization session override error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+
 

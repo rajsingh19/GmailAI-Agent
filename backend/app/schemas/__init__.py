@@ -56,6 +56,16 @@ from app.schemas.proactive import (
     ProactiveTriggerResponse,
 )
 
+from app.schemas.memory import (
+    MemoryBase,
+    MemoryCreateRequest,
+    MemoryUpdateRequest,
+    MemoryResponse,
+    MemoryListResponse,
+    MemorySearchResponse,
+    MemoryStatsResponse,
+)
+
 __all__ = [
     "HealthResponse",
     "GmailProfileResponse",
@@ -100,6 +110,13 @@ __all__ = [
     "ActionExecuteResponse",
     "ProactiveStatusResponse",
     "ProactiveTriggerResponse",
+    "MemoryBase",
+    "MemoryCreateRequest",
+    "MemoryUpdateRequest",
+    "MemoryResponse",
+    "MemoryListResponse",
+    "MemorySearchResponse",
+    "MemoryStatsResponse",
 ]
 
 

@@ -13,6 +13,8 @@ class AgentChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000, description="User's natural language instruction or query")
     history: Optional[List[AgentChatMessage]] = Field(default=None, description="Recent conversation history")
     confirmation_token: Optional[str] = Field(default=None, description="One-time server-issued confirmation token for high-risk actions")
+    session_id: Optional[str] = Field(default=None, description="Optional conversational session ID for override tracking")
+    disable_personalization: Optional[bool] = Field(default=False, description="Request-scoped turn override to bypass personalization")
 
 
 class ToolActivityInfo(BaseModel):
@@ -39,6 +41,7 @@ class AgentChatResponse(BaseModel):
     tool_activities: List[ToolActivityInfo] = Field(default_factory=list, description="Sanitized list of tools utilized")
     confirmation_required: Optional[ConfirmationChallenge] = Field(default=None, description="Populated if a high-risk action requires confirmation")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Execution telemetry (model name, duration ms, tool count)")
+    personalization_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Authoritative backend-generated personalization metadata")
 
 
 class ToolDefinitionSchema(BaseModel):

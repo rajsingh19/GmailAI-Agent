@@ -11,6 +11,8 @@ from app.api.v1.endpoints import (
     knowledge,
     proactive,
     voice,
+    memory,
+    personalization,
 )
 
 api_v1_router = APIRouter()
@@ -26,6 +28,8 @@ api_v1_router.include_router(agent.router, prefix="/agent", tags=["Agent"])
 api_v1_router.include_router(knowledge.router, prefix="/knowledge", tags=["Knowledge"])
 api_v1_router.include_router(proactive.router, prefix="/proactive", tags=["Proactive"])
 api_v1_router.include_router(voice.router, prefix="/voice", tags=["Voice"])
+api_v1_router.include_router(memory.router, prefix="/memories", tags=["Memory"])
+api_v1_router.include_router(personalization.router, prefix="/personalization", tags=["Personalization"])
 
 
 

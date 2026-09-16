@@ -6,6 +6,7 @@ from app.models.reminder import Reminder
 from app.models.notification import Notification
 from app.models.knowledge import KnowledgeDocument, KnowledgeChunk
 from app.models.user_preference import UserPreference
+from app.models.user_memory import UserMemory
 
 __all__ = [
     "User",
@@ -17,6 +18,7 @@ __all__ = [
     "KnowledgeDocument",
     "KnowledgeChunk",
     "UserPreference",
+    "UserMemory",
 ]
 
 

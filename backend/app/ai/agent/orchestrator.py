@@ -19,7 +19,7 @@ from app.ai.providers.base import (
 from app.ai.providers.gemini_provider import GeminiProvider
 from app.ai.agent.tool_registry import ToolRegistry
 from app.ai.agent.tool_executor import ToolExecutor, ToolExecutionResult
-from app.ai.agent.prompts import get_agent_system_instruction
+from app.ai.agent.prompts import get_agent_system_instruction, format_memory_context
 from app.ai.schemas.agent import (
     AgentChatMessage,
     AgentChatResponse,
@@ -83,9 +83,12 @@ class AgentOrchestrator:
         message: str,
         history: Optional[List[AgentChatMessage]] = None,
         confirmation_token: Optional[str] = None,
+        session_id: Optional[str] = None,
+        disable_personalization: bool = False,
     ) -> AgentChatResponse:
         """
         Processes a single user message turn with safe multi-step tool execution.
+        Integrates M12 Personalization Intelligence & Policy layer.
         """
         execution_id = str(uuid.uuid4())
         start_time = time.perf_counter()
@@ -111,9 +114,21 @@ class AgentOrchestrator:
         llm_messages: List[LLMMessage] = self._sanitize_history(history)
         llm_messages.append(LLMMessage(role="user", content=clean_message))
 
-        # 3. System prompt & tools
+        # 3. System prompt & tools (with bounded M12 personalization context)
+        from app.services.personalization_service import PersonalizationService
         now_iso = datetime.now(timezone.utc).isoformat()
-        sys_instruction = get_agent_system_instruction(user_email=user.email, current_time_iso=now_iso)
+        personalization_res = await PersonalizationService.build_personalization_context(
+            db=db,
+            user_id=user.id,
+            query=clean_message,
+            session_id=session_id,
+            disable_personalization=disable_personalization,
+        )
+        sys_instruction = get_agent_system_instruction(
+            user_email=user.email,
+            current_time_iso=now_iso,
+            memory_context=personalization_res.context_text,
+        )
         tool_declarations = ToolRegistry.get_tool_declarations()
 
         tool_activities: List[ToolActivityInfo] = []
@@ -226,14 +241,20 @@ class AgentOrchestrator:
             bool(confirmation_required),
         )
 
+        meta_dict = {
+            "model": getattr(self.provider, "model_name", "unknown"),
+            "duration_ms": duration_ms,
+            "tool_calls_count": len(tool_activities),
+        }
+        p_meta = personalization_res.metadata.model_dump() if "personalization_res" in locals() and personalization_res.metadata else None
+        if p_meta:
+            meta_dict["personalization_metadata"] = p_meta
+
         return AgentChatResponse(
             message=final_answer,
             execution_id=execution_id,
             tool_activities=tool_activities,
             confirmation_required=confirmation_required,
-            metadata={
-                "model": getattr(self.provider, "model_name", "unknown"),
-                "duration_ms": duration_ms,
-                "tool_calls_count": len(tool_activities),
-            },
+            metadata=meta_dict,
+            personalization_metadata=p_meta,
         )

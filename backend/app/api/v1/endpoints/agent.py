@@ -36,6 +36,8 @@ async def chat_with_agent(
         message=request.message,
         history=request.history,
         confirmation_token=request.confirmation_token,
+        session_id=request.session_id,
+        disable_personalization=bool(request.disable_personalization),
     )
     return response
 
