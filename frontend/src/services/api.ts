@@ -1045,14 +1045,17 @@ export interface ProactiveStatusResponse {
 export interface ActionExecuteRequest {
   notification_id: string;
   action_type: string;
-  target_id: string;
+  target_id?: string | null;
+  action_payload?: Record<string, any>;
   confirmation_token?: string;
 }
 
 export interface ActionExecuteResponse {
-  status: 'completed' | 'confirmation_required' | 'failed';
+  status: 'completed' | 'success' | 'confirmation_required' | 'failed' | 'error';
   result?: any;
   message: string;
+  confirmation_token?: string;
+  confirmation_prompt?: string;
   confirmation_challenge?: {
     action: string;
     details: Record<string, any>;

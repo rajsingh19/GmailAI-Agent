@@ -154,6 +154,7 @@ export const ProactiveAssistantCard: React.FC<ProactiveAssistantCardProps> = ({
         notification_id: notification.id,
         action_type: action.action_type,
         target_id: action.target_id,
+        action_payload: action.action_payload || {},
         confirmation_token: confirmedToken,
       });
 

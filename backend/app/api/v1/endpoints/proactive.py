@@ -304,11 +304,16 @@ async def execute_suggested_action(
 
     # 3. Execute action safely via ToolExecutor
     try:
+        action_payload = request.action_payload
+        if not action_payload and notif.metadata_json:
+            s_act = notif.metadata_json.get("suggested_action") or {}
+            action_payload = s_act.get("action_payload", {})
+
         exec_result = await ToolExecutor.execute_tool(
             user_id=str(current_user.id),
             db=db,
             tool_name=tool_name,
-            arguments=request.action_payload,
+            arguments=action_payload,
             confirmation_token=request.confirmation_token,
         )
 
