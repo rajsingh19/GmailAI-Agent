@@ -34,6 +34,8 @@ class LLMToolCall:
     id: str
     name: str
     arguments: Dict[str, Any]
+    thought_signature: Optional[str] = None
+    raw_part: Optional[Dict[str, Any]] = None
 
 
 @dataclass

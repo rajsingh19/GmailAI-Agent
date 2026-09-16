@@ -110,7 +110,7 @@ class Settings(BaseSettings):
 
     # AI Provider configuration (Milestone 6)
     GEMINI_API_KEY: str = ""
-    AI_MODEL_NAME: str = "gemini-2.0-flash"
+    AI_MODEL_NAME: str = "gemini-3.6-flash"
     GEMINI_MODEL: Optional[str] = None  # Optional override
 
     # Embedding & RAG Configuration (Milestone 7)

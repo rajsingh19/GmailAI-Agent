@@ -101,14 +101,20 @@ class GeminiProvider(LLMProvider):
                     }
                 })
             elif msg.tool_calls:
-                # Model function calls
+                # Model function calls - must preserve thoughtSignature / raw_part if provided
                 for tc in msg.tool_calls:
-                    parts.append({
-                        "functionCall": {
-                            "name": tc.name,
-                            "args": tc.arguments,
+                    if tc.raw_part:
+                        parts.append(tc.raw_part)
+                    else:
+                        fc_dict: Dict[str, Any] = {
+                            "functionCall": {
+                                "name": tc.name,
+                                "args": tc.arguments,
+                            }
                         }
-                    })
+                        if tc.thought_signature:
+                            fc_dict["thoughtSignature"] = tc.thought_signature
+                        parts.append(fc_dict)
                 if msg.content:
                     parts.append({"text": msg.content})
             elif msg.content:
@@ -199,7 +205,16 @@ class GeminiProvider(LLMProvider):
                 name = fc.get("name", "")
                 args = fc.get("args", {})
                 call_id = f"call_{name}_{idx}"
-                tool_calls.append(LLMToolCall(id=call_id, name=name, arguments=args))
+                thought_sig = part.get("thoughtSignature") or part.get("thought_signature")
+                tool_calls.append(
+                    LLMToolCall(
+                        id=call_id,
+                        name=name,
+                        arguments=args,
+                        thought_signature=thought_sig,
+                        raw_part=part,
+                    )
+                )
 
         combined_text = "\n".join(text_pieces).strip() if text_pieces else None
         return LLMResponse(content=combined_text, tool_calls=tool_calls, raw_response=data)
