@@ -39,7 +39,7 @@ async def test_gmail_detector_bounded_query_limit_10(test_db: AsyncSession, mock
     mock_gmail_service.list_messages.assert_called_with(
         db=test_db,
         user_id="u_gmail_1",
-        q="is:unread newer_than:2d",
+        q="(is:unread OR label:INBOX) newer_than:2d",
         max_results=10,
         include_spam_trash=False,
     )

@@ -14,9 +14,11 @@ async def execute_create_task(
     description: Optional[str] = None,
     priority: Optional[str] = "medium",
     due_at: Optional[str] = None,
-    timezone: Optional[str] = "UTC",
+    user_timezone: Optional[str] = "UTC",
+    **kwargs: Any,
 ) -> Dict[str, Any]:
     """Tool function to create a new task for the authenticated user."""
+    final_desc = description or kwargs.get("notes")
     due_dt = None
     if due_at:
         try:
@@ -25,12 +27,13 @@ async def execute_create_task(
         except Exception:
             return {"status": "error", "message": f"Invalid due_at ISO format: {due_at}"}
 
+    tz_val = kwargs.get("timezone") or user_timezone or "UTC"
     task_in = TaskCreate(
         title=title,
-        description=description,
+        description=final_desc,
         priority=priority or "medium",
         due_at=due_dt,
-        timezone=timezone or "UTC",
+        timezone=tz_val,
     )
     task = await TaskService.create_task(db=db, user_id=user_id, task_in=task_in)
     return {
