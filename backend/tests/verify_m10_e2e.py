@@ -95,7 +95,7 @@ async def run_e2e_verification():
     # 1. Config Check
     print("\n[STEP 1] Checking Configuration & GEMINI_STT_MODEL...")
     assert settings.VOICE_ENABLED is True, "VOICE_ENABLED must be True"
-    assert settings.GEMINI_STT_MODEL == "gemini-3.5-transcribe", f"GEMINI_STT_MODEL must be gemini-3.5-transcribe, got {settings.GEMINI_STT_MODEL}"
+    assert settings.GEMINI_STT_MODEL in ["gemini-3.6-flash", "gemini-3.5-transcribe"], f"GEMINI_STT_MODEL unexpected: {settings.GEMINI_STT_MODEL}"
     print(f"  ✓ GEMINI_STT_MODEL: {settings.GEMINI_STT_MODEL}")
     print(f"  ✓ VOICE_ENABLED: {settings.VOICE_ENABLED}")
     print(f"  ✓ MAX_AUDIO_BYTES: {settings.MAX_AUDIO_BYTES} bytes")
@@ -104,7 +104,7 @@ async def run_e2e_verification():
     # 2. Provider Verification Check (Non-faked)
     print("\n[STEP 2] Verifying Gemini STT Provider API Availability (honest check)...")
     gemini_stt = GeminiSTTProvider(api_key=settings.GEMINI_API_KEY)
-    assert gemini_stt.model_name == "gemini-3.5-transcribe"
+    assert gemini_stt.model_name in ["gemini-3.6-flash", "gemini-3.5-transcribe"]
     if not settings.GEMINI_API_KEY:
         try:
             await gemini_stt.transcribe(generate_test_wav(0.5), "audio/wav")

@@ -143,7 +143,7 @@ class Settings(BaseSettings):
     # Milestone 10: Voice & Multimodal Interaction Settings
     VOICE_ENABLED: bool = True
     STT_PROVIDER: str = "gemini"  # "gemini", "mock"
-    GEMINI_STT_MODEL: str = "gemini-3.5-transcribe"
+    GEMINI_STT_MODEL: str = "gemini-3.6-flash"
     TTS_PROVIDER: str = "mock"  # "google", "mock"
     GOOGLE_TTS_VOICE: str = "en-US-Journey-F"
     GOOGLE_TTS_LANGUAGE: str = "en-US"
