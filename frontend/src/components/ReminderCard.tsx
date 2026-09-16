@@ -78,10 +78,20 @@ export const ReminderCard: React.FC<ReminderCardProps> = ({ isAuthenticated }) =
     }
   }, [isAuthenticated]);
 
-  // Polling notifications periodically
+  // Polling notifications periodically & listening to assistant updates
   useEffect(() => {
     loadData();
-    if (!isAuthenticated) return;
+
+    const handleAssistantUpdate = () => {
+      loadData();
+    };
+    window.addEventListener('assistant-data-updated', handleAssistantUpdate);
+
+    if (!isAuthenticated) {
+      return () => {
+        window.removeEventListener('assistant-data-updated', handleAssistantUpdate);
+      };
+    }
     const interval = setInterval(async () => {
       try {
         const [notifRes, remRes] = await Promise.all([

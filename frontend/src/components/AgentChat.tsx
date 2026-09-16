@@ -139,6 +139,10 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
 
       setMessages((prev) => [...prev, assistantMsg]);
 
+      if (response.tool_activities && response.tool_activities.length > 0) {
+        window.dispatchEvent(new CustomEvent('assistant-data-updated', { detail: { tools: response.tool_activities } }));
+      }
+
       if (response.confirmation_required) {
         setPendingConfirmation(response.confirmation_required);
       } else {
@@ -229,6 +233,10 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
       };
 
       setMessages((prev) => [...prev, userMsg, asstMsg]);
+
+      if (response.tool_activities && response.tool_activities.length > 0) {
+        window.dispatchEvent(new CustomEvent('assistant-data-updated', { detail: { tools: response.tool_activities } }));
+      }
 
       if (response.confirmation_required) {
         setPendingConfirmation(response.confirmation_required);

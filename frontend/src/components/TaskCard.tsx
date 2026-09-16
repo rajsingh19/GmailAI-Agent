@@ -64,6 +64,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({ isAuthenticated }) => {
     loadTasks();
   }, [loadTasks]);
 
+  useEffect(() => {
+    const handleAssistantUpdate = () => {
+      loadTasks();
+    };
+    window.addEventListener('assistant-data-updated', handleAssistantUpdate);
+    return () => {
+      window.removeEventListener('assistant-data-updated', handleAssistantUpdate);
+    };
+  }, [loadTasks]);
+
   const handleOpenCreate = () => {
     setEditingTaskId(null);
     setFormTitle('');
