@@ -164,10 +164,11 @@ export const ProactiveAssistantCard: React.FC<ProactiveAssistantCardProps> = ({
           targetId: action.target_id,
           challenge: response.confirmation_challenge,
         });
-      } else if (response.status === 'completed') {
+      } else if (response.status === 'completed' || response.status === 'success') {
         setPendingChallenge(null);
         setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
         onNotify?.(response.message || 'Action executed successfully!', 'success');
+        window.dispatchEvent(new CustomEvent('assistant-data-updated'));
       } else {
         onNotify?.(response.message || 'Action execution failed', 'error');
       }
