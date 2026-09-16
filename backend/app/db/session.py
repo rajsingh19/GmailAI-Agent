@@ -9,16 +9,28 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.db.base import Base
 
-# Determine connect args (e.g. SQLite check_same_thread)
+# Determine connect args and pool settings conditionally
 connect_args = {}
+engine_kwargs = {
+    "echo": False,
+    "future": True,
+}
+
 if settings.DATABASE_URL.startswith("sqlite"):
     connect_args["check_same_thread"] = False
+    engine_kwargs["connect_args"] = connect_args
+else:
+    engine_kwargs.update({
+        "pool_size": settings.DB_POOL_SIZE,
+        "max_overflow": settings.DB_MAX_OVERFLOW,
+        "pool_timeout": settings.DB_POOL_TIMEOUT,
+        "pool_recycle": settings.DB_POOL_RECYCLE,
+        "pool_pre_ping": True,
+    })
 
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=False,
-    future=True,
-    connect_args=connect_args,
+    **engine_kwargs,
 )
 
 AsyncSessionLocal = async_sessionmaker(

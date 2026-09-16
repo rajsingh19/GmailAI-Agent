@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     agent,
     knowledge,
     proactive,
+    voice,
 )
 
 api_v1_router = APIRouter()
@@ -24,6 +25,7 @@ api_v1_router.include_router(notifications.router, prefix="/notifications", tags
 api_v1_router.include_router(agent.router, prefix="/agent", tags=["Agent"])
 api_v1_router.include_router(knowledge.router, prefix="/knowledge", tags=["Knowledge"])
 api_v1_router.include_router(proactive.router, prefix="/proactive", tags=["Proactive"])
+api_v1_router.include_router(voice.router, prefix="/voice", tags=["Voice"])
 
 
 

@@ -1,9 +1,10 @@
+import base64
 import json
 import os
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional, Union
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +15,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "text"  # "text" or "json"
 
     # Server binding (Strictly Port 8000 for local dev)
     HOST: str = "0.0.0.0"
@@ -38,16 +40,52 @@ class Settings(BaseSettings):
             return [i.strip() for i in v.split(",") if i.strip()]
         return v
 
+    # Trusted Upstream Proxies for Client IP Resolution
+    TRUSTED_PROXY_IPS: Union[str, List[str]] = ["127.0.0.1"]
+
+    @field_validator("TRUSTED_PROXY_IPS", mode="before")
+    @classmethod
+    def assemble_trusted_proxies(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            return [i.strip() for i in v.split(",") if i.strip()]
+        return v
+
     # Security & Session Configuration
     SECRET_KEY: str = "super-secret-session-signing-key-minimum-32-chars-change-in-prod"
     TOKEN_ENCRYPTION_KEY: str = ""  # Base64 Fernet key, auto-derived in dev if empty
     SESSION_COOKIE_NAME: str = "ai_assistant_session"
+    SESSION_COOKIE_SECURE: bool = False  # Mandatory True in production
+    SESSION_COOKIE_SAMESITE: str = "lax"
     SESSION_MAX_AGE_SECONDS: int = 60 * 60 * 24 * 7  # 7 days
     STATE_COOKIE_NAME: str = "oauth_state_csrf"
     STATE_COOKIE_MAX_AGE: int = 600  # 10 minutes
 
+    # Rate Limiting Configuration (Milestone 9)
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_STORAGE: str = "redis"  # "redis" or "memory" (memory allowed only in dev/test)
+    REDIS_URL: Optional[str] = None
+    REDIS_SOCKET_TIMEOUT: float = 2.0
+    REDIS_CONNECT_TIMEOUT: float = 2.0
+    RATE_LIMIT_DEFAULT_LIMIT: int = 60
+    RATE_LIMIT_DEFAULT_WINDOW: int = 60
+    RATE_LIMIT_AUTH_LIMIT: int = 10
+    RATE_LIMIT_AUTH_WINDOW: int = 60
+    RATE_LIMIT_ACTION_LIMIT: int = 10
+    RATE_LIMIT_ACTION_WINDOW: int = 60
+
+    # Content Security Policy & Security Headers
+    CSP_REPORT_ONLY: bool = False
+
+    # Metrics & Prometheus Configuration
+    METRICS_ENABLED: bool = True
+    METRICS_SECRET_TOKEN: Optional[str] = None
+
     # Database Configuration (SQLite default with PostgreSQL support)
     DATABASE_URL: str = "sqlite+aiosqlite:///./ai_assistant.db"
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_TIMEOUT: int = 30
+    DB_POOL_RECYCLE: int = 1800
 
     # Google OAuth 2.0 Credentials
     GOOGLE_CREDENTIALS_PATH: Optional[str] = None
@@ -101,7 +139,22 @@ class Settings(BaseSettings):
     MAX_HISTORY_MESSAGES: int = 10
     MAX_HISTORY_CHARS: int = 8000
     MAX_TOOL_RESULT_CHARS: int = 4000
-    CONFIRMATION_TOKEN_TTL_SECONDS: int = 300  # 5 minutes
+    CONFIRMATION_TOKEN_TTL_SECONDS: int = 300
+    # Milestone 10: Voice & Multimodal Interaction Settings
+    VOICE_ENABLED: bool = True
+    STT_PROVIDER: str = "gemini"  # "gemini", "mock"
+    GEMINI_STT_MODEL: str = "gemini-3.5-transcribe"
+    TTS_PROVIDER: str = "mock"  # "google", "mock"
+    GOOGLE_TTS_VOICE: str = "en-US-Journey-F"
+    GOOGLE_TTS_LANGUAGE: str = "en-US"
+    MAX_AUDIO_BYTES: int = 10 * 1024 * 1024  # 10 MB default
+    MAX_AUDIO_DURATION_SECONDS: int = 60
+    MAX_TRANSCRIPT_CHARS: int = 2000
+    MAX_TTS_CHARS: int = 1000
+    VOICE_REQUEST_TIMEOUT: int = 30
+    VOICE_AUDIO_PERSISTENCE: bool = False
+    RATE_LIMIT_VOICE_LIMIT: int = 20
+    RATE_LIMIT_VOICE_WINDOW: int = 60
 
     @property
     def effective_model_name(self) -> str:
@@ -112,6 +165,63 @@ class Settings(BaseSettings):
     def effective_embedding_model(self) -> str:
         """Returns the configured embedding model name."""
         return self.EMBEDDING_MODEL
+
+    @model_validator(mode="after")
+    def validate_production_invariants(self) -> "Settings":
+        if self.ENVIRONMENT == "production":
+            # 1. SECRET_KEY validation
+            if len(self.SECRET_KEY) < 32:
+                raise ValueError("Production SECRET_KEY must be at least 32 characters long.")
+            lowered_secret = self.SECRET_KEY.lower()
+            if "super-secret" in lowered_secret or "change-in-prod" in lowered_secret or "default" in lowered_secret:
+                raise ValueError("Production SECRET_KEY cannot contain default or insecure substrings.")
+
+            # 2. TOKEN_ENCRYPTION_KEY validation
+            if not self.TOKEN_ENCRYPTION_KEY:
+                raise ValueError("Production TOKEN_ENCRYPTION_KEY must be explicitly set.")
+            try:
+                raw_bytes = base64.urlsafe_b64decode(self.TOKEN_ENCRYPTION_KEY.encode("ascii"))
+                if len(raw_bytes) != 32:
+                    raise ValueError
+            except Exception:
+                raise ValueError("Production TOKEN_ENCRYPTION_KEY must be a valid 32-byte base64 Fernet key.")
+
+            # 3. DATABASE_URL validation
+            if self.DATABASE_URL.startswith("sqlite"):
+                raise ValueError("SQLite is forbidden in production; PostgreSQL is required.")
+
+            # 4. Redis and Rate Limiting validation
+            if self.RATE_LIMIT_ENABLED:
+                if not self.REDIS_URL:
+                    raise ValueError("REDIS_URL must be configured when RATE_LIMIT_ENABLED is true in production.")
+                if not (self.REDIS_URL.startswith("redis://") or self.REDIS_URL.startswith("rediss://")):
+                    raise ValueError("REDIS_URL must begin with redis:// or rediss://.")
+                if self.RATE_LIMIT_STORAGE == "memory":
+                    raise ValueError("In-memory rate limiting is forbidden in production; Redis is required.")
+
+            # 5. Google OAuth credentials validation
+            if not self.GOOGLE_CLIENT_ID or not self.GOOGLE_CLIENT_SECRET:
+                raise ValueError("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be configured in production.")
+
+            # 6. Gemini API Key validation
+            if not self.GEMINI_API_KEY:
+                raise ValueError("GEMINI_API_KEY must be configured in production.")
+
+            # 7. CORS validation
+            origins = self.ALLOWED_ORIGINS if isinstance(self.ALLOWED_ORIGINS, list) else [self.ALLOWED_ORIGINS]
+            if "*" in origins:
+                raise ValueError("Wildcard CORS ('*') is forbidden in production with credentials enabled.")
+
+            # 8. Secure Cookies validation
+            if not self.SESSION_COOKIE_SECURE:
+                raise ValueError("SESSION_COOKIE_SECURE must be True in production.")
+
+            # 9. Trusted Proxy configuration
+            trusted = self.TRUSTED_PROXY_IPS if isinstance(self.TRUSTED_PROXY_IPS, list) else [self.TRUSTED_PROXY_IPS]
+            if not trusted or "0.0.0.0/0" in trusted:
+                raise ValueError("TRUSTED_PROXY_IPS must be explicitly configured in production without broad wildcards.")
+
+        return self
 
     model_config = SettingsConfigDict(
         env_file=(".env", "backend/.env", "../.env"),

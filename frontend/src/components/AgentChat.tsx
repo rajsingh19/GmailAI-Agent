@@ -23,6 +23,8 @@ import {
   ConfirmationChallenge,
   ToolActivityInfo,
 } from '../services/api';
+import { VoiceControls } from './VoiceControls';
+import { sendVoiceChat, cancelVoiceExecution, VoiceChatResponse } from '../services/voiceApi';
 
 interface AgentChatProps {
   isAuthenticated: boolean;
@@ -61,6 +63,10 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
   const [error, setError] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<ConfirmationChallenge | null>(null);
   const [configuredModel, setConfiguredModel] = useState<string>('Gemini');
+  const [lastAudioBase64, setLastAudioBase64] = useState<string | null>(null);
+  const [lastAudioMimeType, setLastAudioMimeType] = useState<string | null>(null);
+  const [ttsStatus, setTtsStatus] = useState<'success' | 'degraded' | 'disabled' | undefined>(undefined);
+  const [activeVoiceExecutionId, setActiveVoiceExecutionId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -170,6 +176,86 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
     ]);
     setPendingConfirmation(null);
     setError(null);
+  };
+
+  const handleVoiceRecorded = async (audioBlob: Blob) => {
+    if (!isAuthenticated) {
+      setError('Please sign in or connect your account to interact with the AI Assistant.');
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    const executionId = `voice-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    setActiveVoiceExecutionId(executionId);
+
+    try {
+      const apiHistory: AgentChatMessage[] = messages
+        .filter((m) => m.id !== 'welcome-1')
+        .slice(-8)
+        .map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+
+      const response: VoiceChatResponse = await sendVoiceChat(audioBlob, {
+        history: apiHistory,
+      });
+
+      if (response.metadata && response.metadata.model) {
+        setConfiguredModel(response.metadata.model);
+      }
+
+      // Add user transcript message
+      const userMsg: DisplayMessage = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: response.transcript || '(voice input)',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      // Add assistant response message
+      const asstMsg: DisplayMessage = {
+        id: `asst-${Date.now()}`,
+        role: 'assistant',
+        content: response.message,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        toolsCalled: response.tool_activities,
+        requiresConfirmation: Boolean(response.confirmation_required),
+        confirmation: response.confirmation_required,
+      };
+
+      setMessages((prev) => [...prev, userMsg, asstMsg]);
+
+      if (response.confirmation_required) {
+        setPendingConfirmation(response.confirmation_required);
+      } else {
+        setPendingConfirmation(null);
+      }
+
+      if (response.audio_base64) {
+        setLastAudioBase64(response.audio_base64);
+        setLastAudioMimeType(response.audio_content_type || 'audio/wav');
+      }
+      setTtsStatus(response.tts_status);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during voice processing.');
+    } finally {
+      setLoading(false);
+      setActiveVoiceExecutionId(null);
+    }
+  };
+
+  const handleCancelVoice = async () => {
+    if (activeVoiceExecutionId) {
+      try {
+        await cancelVoiceExecution(activeVoiceExecutionId);
+      } catch (err) {
+        console.warn('Voice cancellation error:', err);
+      }
+    }
+    setLoading(false);
+    setActiveVoiceExecutionId(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -391,6 +477,15 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
               className="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all resize-none disabled:opacity-50"
             />
           </div>
+          <VoiceControls
+            onAudioRecorded={handleVoiceRecorded}
+            disabled={loading || !isAuthenticated}
+            isProcessing={Boolean(activeVoiceExecutionId)}
+            onCancelProcessing={handleCancelVoice}
+            lastAudioBase64={lastAudioBase64}
+            lastAudioMimeType={lastAudioMimeType}
+            ttsStatus={ttsStatus}
+          />
           <button
             type="submit"
             disabled={loading || !inputText.trim() || !isAuthenticated}

@@ -19,6 +19,7 @@ from googleapiclient.errors import HttpError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import logger
+from app.core.resilience import retry_with_backoff
 from app.schemas.gmail import (
     GmailMessageDetail,
     GmailMessageListResponse,
@@ -113,7 +114,10 @@ class GmailService:
             return client.users().getProfile(userId="me").execute()
 
         try:
-            profile_data = await asyncio.to_thread(_fetch)
+            profile_data = await retry_with_backoff(
+                lambda: asyncio.to_thread(_fetch),
+                operation_name="get_profile",
+            )
         except HttpError as exc:
             self._handle_http_error(exc, operation="get_profile")
         except Exception as exc:
@@ -150,15 +154,18 @@ class GmailService:
         if query:
             params["q"] = query
 
-        def _list():
+        def _fetch_list():
             return client.users().messages().list(**params).execute()
 
         try:
-            list_res = await asyncio.to_thread(_list)
+            list_res = await retry_with_backoff(
+                lambda: asyncio.to_thread(_fetch_list),
+                operation_name="list_messages",
+            )
         except HttpError as exc:
             self._handle_http_error(exc, operation="list_messages")
         except Exception as exc:
-            logger.error("Unexpected error listing Gmail messages for user_id=%s: %s", self.user_id, type(exc).__name__)
+            logger.error("Unexpected error listing messages for user_id=%s: %s", self.user_id, type(exc).__name__)
             raise GmailCommunicationError("Unable to communicate with Gmail.") from exc
 
         raw_messages = list_res.get("messages", []) or []
@@ -263,7 +270,10 @@ class GmailService:
             ).execute()
 
         try:
-            raw_msg = await asyncio.to_thread(_fetch_full)
+            raw_msg = await retry_with_backoff(
+                lambda: asyncio.to_thread(_fetch_full),
+                operation_name=f"get_message({clean_id})",
+            )
         except HttpError as exc:
             self._handle_http_error(exc, operation=f"get_message({clean_id})")
         except Exception as exc:

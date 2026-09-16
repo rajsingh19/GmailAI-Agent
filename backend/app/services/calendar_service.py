@@ -20,6 +20,7 @@ from googleapiclient.errors import HttpError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import logger
+from app.core.resilience import retry_with_backoff
 from app.schemas.calendar import (
     CalendarAttendee,
     CalendarConferenceData,
@@ -158,7 +159,10 @@ class CalendarService:
             return client.calendarList().list(**params).execute()
 
         try:
-            data = await asyncio.to_thread(_fetch)
+            data = await retry_with_backoff(
+                lambda: asyncio.to_thread(_fetch),
+                operation_name="get_calendar_list",
+            )
         except HttpError as exc:
             self._handle_http_error(exc, operation="get_calendar_list")
         except Exception as exc:
@@ -207,7 +211,10 @@ class CalendarService:
                 raise
 
         try:
-            item = await asyncio.to_thread(_fetch)
+            item = await retry_with_backoff(
+                lambda: asyncio.to_thread(_fetch),
+                operation_name=f"get_calendar({clean_id})",
+            )
         except HttpError as exc:
             self._handle_http_error(exc, operation=f"get_calendar({clean_id})")
         except Exception as exc:
@@ -279,7 +286,10 @@ class CalendarService:
             return client.events().list(**params).execute()
 
         try:
-            data = await asyncio.to_thread(_fetch)
+            data = await retry_with_backoff(
+                lambda: asyncio.to_thread(_fetch),
+                operation_name=f"list_events({clean_cal_id})",
+            )
         except HttpError as exc:
             self._handle_http_error(exc, operation=f"list_events({clean_cal_id})")
         except Exception as exc:
@@ -324,7 +334,10 @@ class CalendarService:
             return client.events().get(calendarId=clean_cal_id, eventId=clean_event_id).execute()
 
         try:
-            item = await asyncio.to_thread(_fetch)
+            item = await retry_with_backoff(
+                lambda: asyncio.to_thread(_fetch),
+                operation_name=f"get_event({clean_cal_id}, {clean_event_id})",
+            )
         except HttpError as exc:
             self._handle_http_error(exc, operation=f"get_event({clean_cal_id}, {clean_event_id})")
         except Exception as exc:

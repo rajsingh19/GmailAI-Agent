@@ -14,6 +14,7 @@ settings.GOOGLE_CLIENT_ID = "mock-client-id.apps.googleusercontent.com"
 settings.GOOGLE_CLIENT_SECRET = "mock-client-secret-xyz123"
 settings.TOKEN_ENCRYPTION_KEY = ""
 settings.SECRET_KEY = "test-secret-key-32-bytes-minimum-length-strictly"
+settings.RATE_LIMIT_ENABLED = False
 
 
 @pytest.fixture(scope="session")
