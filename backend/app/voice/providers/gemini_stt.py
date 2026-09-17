@@ -2,6 +2,7 @@
 Google Gemini Speech-to-Text Provider.
 Transcribes audio recordings via Google Generative Language REST API using configurable GEMINI_STT_MODEL.
 """
+import asyncio
 import base64
 import logging
 from typing import List, Optional
@@ -56,6 +57,7 @@ class GeminiSTTProvider(SpeechToTextProvider):
     ) -> TranscriptionResult:
         """
         Calls Gemini API with audio payload and returns transcribed text.
+        Includes automatic retry for transient 503 Service Unavailable, 5xx, or network glitches.
         """
         if not self.api_key:
             raise VoiceAuthenticationError("Gemini API key is not configured for Speech-to-Text.")
@@ -95,39 +97,65 @@ class GeminiSTTProvider(SpeechToTextProvider):
             },
         }
 
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(url, headers=headers, json=payload)
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    resp = await client.post(url, headers=headers, json=payload)
 
-            if resp.status_code in (401, 403) or (resp.status_code == 400 and "API_KEY_INVALID" in resp.text):
-                logger.warning("Gemini STT authentication failure (status %d)", resp.status_code)
-                raise VoiceAuthenticationError(f"Gemini API authentication failed: {resp.status_code}")
-            elif resp.status_code == 429:
-                logger.warning("Gemini STT rate limit exceeded.")
-                raise VoiceRateLimitError("Gemini STT rate limit exceeded.")
-            elif resp.status_code >= 400:
-                logger.error("Gemini STT API error (status %d)", resp.status_code)
-                raise VoiceProviderError(f"Gemini STT provider returned HTTP {resp.status_code}")
+                if resp.status_code in (401, 403) or (resp.status_code == 400 and "API_KEY_INVALID" in resp.text):
+                    logger.warning("Gemini STT authentication failure (status %d)", resp.status_code)
+                    raise VoiceAuthenticationError(f"Gemini API authentication failed: {resp.status_code}")
+                elif resp.status_code == 429:
+                    if attempt < max_retries:
+                        logger.warning("Gemini STT rate limited (attempt %d/%d), retrying...", attempt, max_retries)
+                        await asyncio.sleep(0.5 * attempt)
+                        continue
+                    raise VoiceRateLimitError("Gemini STT rate limit exceeded.")
+                elif resp.status_code in (500, 502, 503, 504):
+                    if attempt < max_retries:
+                        logger.warning(
+                            "Gemini STT transient error %d (attempt %d/%d), retrying in %0.1fs...",
+                            resp.status_code,
+                            attempt,
+                            max_retries,
+                            0.5 * attempt,
+                        )
+                        await asyncio.sleep(0.5 * attempt)
+                        continue
+                    logger.error("Gemini STT API error (status %d) after %d attempts", resp.status_code, max_retries)
+                    raise VoiceProviderError(f"Gemini STT provider returned HTTP {resp.status_code}")
+                elif resp.status_code >= 400:
+                    logger.error("Gemini STT API error (status %d)", resp.status_code)
+                    raise VoiceProviderError(f"Gemini STT provider returned HTTP {resp.status_code}")
 
-            data = resp.json()
-            candidates = data.get("candidates", [])
-            if not candidates:
-                return TranscriptionResult(transcript="", detected_language=language, confidence=0.0)
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    return TranscriptionResult(transcript="", detected_language=language, confidence=0.0)
 
-            parts = candidates[0].get("content", {}).get("parts", [])
-            transcript = "".join(p.get("text", "") for p in parts).strip()
+                parts = candidates[0].get("content", {}).get("parts", [])
+                transcript = "".join(p.get("text", "") for p in parts).strip()
 
-            return TranscriptionResult(
-                transcript=transcript,
-                detected_language=language,
-                confidence=0.95 if transcript else 0.0,
-            )
+                return TranscriptionResult(
+                    transcript=transcript,
+                    detected_language=language,
+                    confidence=0.95 if transcript else 0.0,
+                )
 
-        except httpx.TimeoutException as exc:
-            logger.warning("Gemini STT request timed out after %.1f seconds: %s", timeout, exc)
-            raise VoiceTimeoutError("Gemini STT transcription request timed out.") from exc
-        except (VoiceAuthenticationError, VoiceRateLimitError, VoiceTimeoutError, VoiceProviderError):
-            raise
-        except Exception as exc:
-            logger.exception("Unexpected error in Gemini STT provider: %s", exc)
-            raise VoiceProviderError(f"Unexpected error in Gemini STT: {exc}") from exc
+            except httpx.TimeoutException as exc:
+                if attempt < max_retries:
+                    logger.warning("Gemini STT timeout (attempt %d/%d), retrying...", attempt, max_retries)
+                    await asyncio.sleep(0.5 * attempt)
+                    continue
+                logger.warning("Gemini STT request timed out after %.1f seconds: %s", timeout, exc)
+                raise VoiceTimeoutError("Gemini STT transcription request timed out.") from exc
+            except (VoiceAuthenticationError, VoiceRateLimitError, VoiceTimeoutError, VoiceProviderError):
+                raise
+            except Exception as exc:
+                if attempt < max_retries:
+                    logger.warning("Gemini STT unexpected network error (attempt %d/%d): %s", attempt, max_retries, exc)
+                    await asyncio.sleep(0.5 * attempt)
+                    continue
+                logger.exception("Unexpected error in Gemini STT provider: %s", exc)
+                raise VoiceProviderError(f"Unexpected error in Gemini STT: {exc}") from exc

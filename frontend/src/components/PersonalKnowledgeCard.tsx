@@ -109,13 +109,10 @@ export const PersonalKnowledgeCard: React.FC<PersonalKnowledgeCardProps> = ({ on
           </div>
           <div>
             <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-              Personal Knowledge & RAG
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-                Milestone 7
-              </span>
+              Personal Knowledge
             </h2>
             <p className="text-xs text-slate-400">
-              Semantic vector retrieval across your emails, calendar, tasks, and reminders
+              Search and retrieve information across your connected emails, calendar events, tasks, and reminders
             </p>
           </div>
         </div>
@@ -126,7 +123,7 @@ export const PersonalKnowledgeCard: React.FC<PersonalKnowledgeCardProps> = ({ on
           className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-indigo-600/20 border border-indigo-500/30 hover:bg-indigo-600/30 text-indigo-300 text-xs font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm hover:shadow"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${reindexing ? 'animate-spin' : ''}`} />
-          {reindexing ? 'Syncing Knowledge...' : 'Sync Knowledge'}
+          {reindexing ? 'Syncing...' : 'Sync Knowledge'}
         </button>
       </div>
 
@@ -135,7 +132,7 @@ export const PersonalKnowledgeCard: React.FC<PersonalKnowledgeCardProps> = ({ on
         <div className="flex items-center gap-2.5">
           <Database className="w-4 h-4 text-indigo-400" />
           <div>
-            <div className="text-[11px] text-slate-400">Indexed Docs</div>
+            <div className="text-[11px] text-slate-400">Saved Items</div>
             <div className="text-sm font-semibold text-slate-200">
               {status ? status.total_documents : 0}
             </div>
@@ -144,7 +141,7 @@ export const PersonalKnowledgeCard: React.FC<PersonalKnowledgeCardProps> = ({ on
         <div className="flex items-center gap-2.5">
           <Layers className="w-4 h-4 text-purple-400" />
           <div>
-            <div className="text-[11px] text-slate-400">Vector Chunks</div>
+            <div className="text-[11px] text-slate-400">Knowledge Index</div>
             <div className="text-sm font-semibold text-slate-200">
               {status ? status.total_chunks : 0}
             </div>
@@ -153,15 +150,15 @@ export const PersonalKnowledgeCard: React.FC<PersonalKnowledgeCardProps> = ({ on
         <div className="flex items-center gap-2.5">
           <Sparkles className="w-4 h-4 text-emerald-400" />
           <div>
-            <div className="text-[11px] text-slate-400">Embedding Model</div>
-            <div className="text-sm font-semibold text-slate-200">768d text-emb</div>
+            <div className="text-[11px] text-slate-400">AI Search</div>
+            <div className="text-sm font-semibold text-emerald-400">Active</div>
           </div>
         </div>
         <div className="flex items-center gap-2.5">
           <ShieldCheck className="w-4 h-4 text-sky-400" />
           <div>
-            <div className="text-[11px] text-slate-400">Isolation</div>
-            <div className="text-sm font-semibold text-slate-200">User Scoped</div>
+            <div className="text-[11px] text-slate-400">Privacy</div>
+            <div className="text-sm font-semibold text-sky-400">User Isolated</div>
           </div>
         </div>
       </div>
@@ -174,7 +171,7 @@ export const PersonalKnowledgeCard: React.FC<PersonalKnowledgeCardProps> = ({ on
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Ask a question or search topics (e.g. 'What did Alex say about the deadline?')..."
+            placeholder="Search topics (e.g., 'What did Alex say about the project timeline?')..."
             className="w-full bg-slate-950/60 border border-slate-800/80 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all shadow-inner"
           />
         </div>
@@ -184,7 +181,7 @@ export const PersonalKnowledgeCard: React.FC<PersonalKnowledgeCardProps> = ({ on
           className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-medium transition-all shadow-md shadow-indigo-900/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           {searching ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          Semantic Search
+          Search
         </button>
       </form>
 

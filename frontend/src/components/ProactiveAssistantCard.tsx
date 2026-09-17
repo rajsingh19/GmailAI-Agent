@@ -251,16 +251,16 @@ export const ProactiveAssistantCard: React.FC<ProactiveAssistantCardProps> = ({
           <div>
             <div className="flex items-center space-x-2">
               <h2 className="text-lg font-bold text-white tracking-tight">
-                Proactive AI Assistant
+                Proactive Assistant
               </h2>
               {status?.proactive_enabled ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-ping" />
-                  Active Monitoring
+                  Monitoring ON
                 </span>
               ) : (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700">
-                  Disabled (Opt-In)
+                  Monitoring OFF
                 </span>
               )}
               {status?.quiet_hours_active && (
@@ -269,9 +269,13 @@ export const ProactiveAssistantCard: React.FC<ProactiveAssistantCardProps> = ({
                 </span>
               )}
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Intelligent multi-source monitoring across Calendar, Tasks, Reminders, and Gmail
-            </p>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400 mt-1">
+              <span>Monitored:</span>
+              <span className="inline-flex items-center gap-1 text-purple-400"><Mail className="w-3 h-3" /> Gmail</span>
+              <span className="inline-flex items-center gap-1 text-sky-400"><Calendar className="w-3 h-3" /> Calendar</span>
+              <span className="inline-flex items-center gap-1 text-emerald-400"><CheckSquare className="w-3 h-3" /> Tasks</span>
+              <span className="inline-flex items-center gap-1 text-amber-400"><Clock className="w-3 h-3" /> Reminders</span>
+            </div>
           </div>
         </div>
 
@@ -282,9 +286,9 @@ export const ProactiveAssistantCard: React.FC<ProactiveAssistantCardProps> = ({
             id="proactive-optin-toggle"
             onClick={() => handleToggleProactive(!preferences?.proactive_enabled)}
             disabled={savingPrefs}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center space-x-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center space-x-1.5 cursor-pointer ${
               preferences?.proactive_enabled
-                ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
                 : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
             }`}
           >
@@ -297,8 +301,8 @@ export const ProactiveAssistantCard: React.FC<ProactiveAssistantCardProps> = ({
             id="trigger-proactive-check-btn"
             onClick={handleTriggerCheck}
             disabled={checking || !preferences?.proactive_enabled}
-            title="Scan detectors immediately"
-            className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg text-xs font-medium transition flex items-center space-x-1 disabled:opacity-40"
+            title="Scan for situations now"
+            className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg text-xs font-medium transition flex items-center space-x-1 disabled:opacity-40 cursor-pointer"
           >
             <Play className={`w-3.5 h-3.5 text-indigo-400 ${checking ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Scan Now</span>
@@ -308,8 +312,9 @@ export const ProactiveAssistantCard: React.FC<ProactiveAssistantCardProps> = ({
           <button
             id="proactive-settings-btn"
             onClick={() => setShowPreferences(!showPreferences)}
-            className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg transition"
-            title="Preferences"
+            className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg transition cursor-pointer"
+            title="Monitoring Preferences"
+            aria-label="Monitoring Preferences"
           >
             <Sliders className="w-4 h-4" />
           </button>
@@ -524,7 +529,7 @@ export const ProactiveAssistantCard: React.FC<ProactiveAssistantCardProps> = ({
         </form>
       )}
 
-      {/* Confirmation Challenge Modal for High Risk Actions */}
+      {/* Confirmation Challenge Modal for Actions */}
       {pendingChallenge && (
         <div className="p-4 bg-amber-950/40 border-b border-amber-800/60 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center space-x-3">
@@ -533,17 +538,17 @@ export const ProactiveAssistantCard: React.FC<ProactiveAssistantCardProps> = ({
             </div>
             <div>
               <h4 className="text-sm font-bold text-amber-200">
-                Action Requires Authorization
+                Confirmation Required
               </h4>
               <p className="text-xs text-amber-300/80">
-                {pendingChallenge.challenge.action}: {JSON.stringify(pendingChallenge.challenge.details)}
+                Please confirm: <strong className="text-amber-100">{pendingChallenge.challenge.action || 'Execute Action'}</strong>
               </p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setPendingChallenge(null)}
-              className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs"
+              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs cursor-pointer"
             >
               Cancel
             </button>
@@ -554,10 +559,10 @@ export const ProactiveAssistantCard: React.FC<ProactiveAssistantCardProps> = ({
                   handleExecuteAction(notif, pendingChallenge.challenge.confirmation_token);
                 }
               }}
-              className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded text-xs flex items-center space-x-1"
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg text-xs flex items-center space-x-1.5 cursor-pointer shadow-sm"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Confirm & Execute</span>
+              <span>Confirm & Create</span>
             </button>
           </div>
         </div>

@@ -7,7 +7,6 @@ import {
   LogOut,
   RefreshCw,
   ExternalLink,
-  Lock,
   AlertTriangle,
 } from 'lucide-react';
 import { AuthStatusResponse, disconnectGoogleAccount, logout, getGoogleOAuthUrl } from '../services/api';
@@ -172,10 +171,9 @@ export const GoogleConnectionCard: React.FC<GoogleConnectionCardProps> = ({
                 <div>
                   <div className="text-base font-semibold text-white flex items-center gap-2">
                     {user?.full_name || 'Google User'}
-                    <span className="text-xs font-normal text-slate-400">({googleEmail})</span>
                   </div>
-                  <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
-                    <span>User ID: <code className="bg-slate-950 px-1 py-0.5 rounded text-blue-400">{user?.id}</code></span>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    {googleEmail}
                   </div>
                 </div>
               </div>
@@ -183,46 +181,26 @@ export const GoogleConnectionCard: React.FC<GoogleConnectionCardProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  Active OAuth Session
+                  Active Connection
                 </span>
               </div>
             </div>
 
-            {/* Scope Permissions & Security Specs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-4 space-y-2">
+            {/* Permissions summary */}
+            <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
                 <div className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
                   <Shield className="w-3.5 h-3.5 text-blue-400" />
-                  Granted Permissions
+                  Account Permissions
                 </div>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    gmail.readonly
-                  </span>
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                    userinfo.email
-                  </span>
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                    userinfo.profile
-                  </span>
+                <div className="text-xs text-slate-300">
+                  Read-only access to Gmail and Google Calendar.
                 </div>
-                <p className="text-[11px] text-slate-400 pt-1">
-                  Least-privilege enforcement: Application cannot send, delete, or alter any emails.
-                </p>
               </div>
-
-              <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-4 space-y-2">
-                <div className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-emerald-400" />
-                  Token Security At Rest
-                </div>
-                <div className="text-xs text-slate-300 pt-1 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                  AES-256 (Fernet) Encrypted
-                </div>
-                <p className="text-[11px] text-slate-400 pt-0.5">
-                  Tokens are stored encrypted in the backend database and never transmitted to the browser.
-                </p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  Gmail & Calendar Read-Only
+                </span>
               </div>
             </div>
           </div>

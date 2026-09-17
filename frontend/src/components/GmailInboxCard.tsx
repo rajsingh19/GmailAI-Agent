@@ -170,9 +170,9 @@ export const GmailInboxCard: React.FC<GmailInboxCardProps> = ({ authStatus }) =>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base sm:text-lg font-bold text-white">Gmail Inbox (Read-Only)</h3>
+              <h3 className="text-base sm:text-lg font-bold text-white">Gmail — Read Only</h3>
               <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                Live API
+                Connected
               </span>
             </div>
             <p className="text-xs text-slate-400">

@@ -55,7 +55,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
       id: 'welcome-1',
       role: 'assistant',
       content:
-        "Hello! I am your AI Assistant powered by Google Gemini and our safe tool-calling core. I can securely inspect your Gmail, search your Calendar, manage your tasks, and schedule reminders. All actions are executed securely under your session, and dangerous write actions require your explicit cryptographic confirmation. How can I help you today?",
+        "Hello! I am your AI Assistant powered by Google Gemini. I can help you search and summarize your Gmail, check upcoming Calendar events, organize daily tasks, and schedule reminders. How can I help you today?",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -63,7 +63,6 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<ConfirmationChallenge | null>(null);
-  const [configuredModel, setConfiguredModel] = useState<string>('Gemini');
   const [lastAudioBase64, setLastAudioBase64] = useState<string | null>(null);
   const [lastAudioMimeType, setLastAudioMimeType] = useState<string | null>(null);
   const [ttsStatus, setTtsStatus] = useState<'success' | 'degraded' | 'disabled' | undefined>(undefined);
@@ -119,10 +118,6 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
         history: apiHistory.slice(0, -1),
         confirmation_token: confirmationToken || null,
       });
-
-      if (response.metadata && response.metadata.model) {
-        setConfiguredModel(response.metadata.model);
-      }
 
       const assistantMsgId = `asst-${Date.now()}`;
       const pMeta = response.personalization_metadata || response.metadata?.personalization_metadata;
@@ -209,10 +204,6 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
         history: apiHistory,
       });
 
-      if (response.metadata && response.metadata.model) {
-        setConfiguredModel(response.metadata.model);
-      }
-
       // Add user transcript message
       const userMsg: DisplayMessage = {
         id: `user-${Date.now()}`,
@@ -286,23 +277,19 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-white tracking-tight">AI Agent Core</h3>
+              <h3 className="text-base font-bold text-white tracking-tight">AI Assistant</h3>
               <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-2 py-0.5 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                Active
+                Ready
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              Safe reasoning engine &bull; Model: <span className="text-slate-300 font-mono text-[11px]">{configuredModel}</span>
+              Personal Intelligent Assistant &bull; Powered by Google Gemini
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Cryptographic Guardrails</span>
-          </div>
           <button
             onClick={handleClearChat}
             className="text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-slate-800 transition-colors flex items-center gap-1 cursor-pointer"
@@ -422,14 +409,11 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
                     <div className="space-y-1 text-xs">
                       <div className="font-semibold text-amber-300 flex items-center gap-1.5">
                         <span>Confirmation Required</span>
-                        <span className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-mono">
+                        <span className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-medium">
                           {msg.confirmation.action}
                         </span>
                       </div>
                       <p className="text-amber-200/90">{msg.confirmation.message}</p>
-                      <div className="text-[11px] text-amber-300/70 font-mono">
-                        Target Resource ID: <span className="text-amber-100">{msg.confirmation.target_id}</span>
-                      </div>
                     </div>
                   </div>
 
@@ -440,7 +424,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
                       className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     >
                       <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>Authorize Operation</span>
+                      <span>Confirm & Execute</span>
                     </button>
                     <button
                       onClick={handleCancelConfirmation}
@@ -460,18 +444,27 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
           <div className="flex items-start gap-2">
             <div className="bg-slate-800/90 border border-slate-700/70 rounded-2xl rounded-tl-none p-4 text-sm text-slate-400 flex items-center gap-2 shadow-sm">
               <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
-              <span>AI is reasoning and executing tools...</span>
+              <span>AI is thinking and processing tools...</span>
             </div>
           </div>
         )}
 
         {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-semibold">Request Error</p>
-              <p className="mt-0.5 opacity-90">{error}</p>
+          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Assistant Notice</p>
+                <p className="mt-0.5 opacity-90">{error}</p>
+              </div>
             </div>
+            <button
+              onClick={() => handleSendMessage()}
+              disabled={loading}
+              className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 text-xs cursor-pointer flex-shrink-0"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -529,7 +522,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
         <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 px-1">
           <span>Press Enter to send, Shift+Enter for new line</span>
           <span className="flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3 text-emerald-500" /> High-risk tools require one-time HMAC tokens
+            <ShieldCheck className="w-3 h-3 text-emerald-500" /> Actions that modify data require your confirmation
           </span>
         </div>
       </div>

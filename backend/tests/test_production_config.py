@@ -29,6 +29,8 @@ def _valid_prod_kwargs() -> dict:
         "ALLOWED_ORIGINS": ["https://assistant.example.com"],
         "SESSION_COOKIE_SECURE": True,
         "TRUSTED_PROXY_IPS": ["10.0.0.1"],
+        "VAPID_PUBLIC_KEY": "BPx_test_vapid_public_key_for_production_testing_1234567890",
+        "VAPID_PRIVATE_KEY": "test_vapid_private_key_for_production_testing_1234567890",
     }
 
 
@@ -121,3 +123,13 @@ def test_valid_production_config_succeeds():
     assert s.SESSION_COOKIE_SECURE is True
     assert s.DATABASE_URL.startswith("postgresql")
     assert s.RATE_LIMIT_STORAGE == "redis"
+    assert s.VAPID_PUBLIC_KEY is not None
+
+
+def test_production_requires_vapid_keys():
+    """Production mode requires explicit VAPID keys when Web Push is enabled."""
+    kwargs = _valid_prod_kwargs()
+    kwargs["VAPID_PUBLIC_KEY"] = None
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(**kwargs)
+    assert "Production VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be explicitly configured" in str(exc_info.value)

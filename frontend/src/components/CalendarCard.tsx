@@ -254,9 +254,9 @@ export const CalendarCard: React.FC<CalendarCardProps> = ({ authStatus }) => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-white tracking-tight">Google Calendar</h2>
+              <h2 className="text-lg font-bold text-white tracking-tight">Calendar — Read Only</h2>
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-                Read-Only Active
+                Connected
               </span>
             </div>
             <p className="text-xs text-slate-400">
@@ -570,7 +570,7 @@ export const CalendarCard: React.FC<CalendarCardProps> = ({ authStatus }) => {
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
               <span className="flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Read-Only Integration (Milestone 4)</span>
+                <span>Read-Only Integration</span>
               </span>
               <button
                 onClick={handleCloseDetail}

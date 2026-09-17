@@ -178,6 +178,14 @@ class Settings(BaseSettings):
     RATE_LIMIT_PERSONALIZATION_LIMIT: int = 30
     RATE_LIMIT_PERSONALIZATION_WINDOW: int = 60
 
+    # Web Push Notifications & PWA
+    WEB_PUSH_ENABLED: bool = True
+    VAPID_PUBLIC_KEY: Optional[str] = None
+    VAPID_PRIVATE_KEY: Optional[str] = None
+    VAPID_SUBJECT: str = "mailto:admin@example.com"
+    RATE_LIMIT_PUSH_LIMIT: int = 20
+    RATE_LIMIT_PUSH_WINDOW: int = 60
+
     @property
     def effective_model_name(self) -> str:
         """Returns the configured model name, prioritizing GEMINI_MODEL over AI_MODEL_NAME."""
@@ -243,7 +251,67 @@ class Settings(BaseSettings):
             if not trusted or "0.0.0.0/0" in trusted:
                 raise ValueError("TRUSTED_PROXY_IPS must be explicitly configured in production without broad wildcards.")
 
+            # 10. Web Push VAPID keys validation in production
+            if self.WEB_PUSH_ENABLED:
+                if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY:
+                    raise ValueError("Production VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be explicitly configured.")
+        else:
+            # Development / Test Mode: Load or generate persistent development VAPID keys
+            if self.WEB_PUSH_ENABLED and (not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY):
+                self._load_or_create_dev_vapid_keys()
+
         return self
+
+    def _load_or_create_dev_vapid_keys(self) -> None:
+        """
+        Loads or generates persistent development VAPID keys in backend/.vapid_dev_keys.json.
+        Ensures active browser subscriptions survive local server restarts during development.
+        """
+        possible_paths = [
+            Path(__file__).resolve().parent.parent.parent / ".vapid_dev_keys.json",
+            Path(".vapid_dev_keys.json").resolve(),
+            Path("backend/.vapid_dev_keys.json").resolve(),
+        ]
+        dev_file_path = possible_paths[0]
+
+        for p in possible_paths:
+            if p.exists():
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        if data.get("public_key") and data.get("private_key"):
+                            self.VAPID_PUBLIC_KEY = data["public_key"]
+                            self.VAPID_PRIVATE_KEY = data["private_key"]
+                            return
+                except Exception:
+                    pass
+
+        # Generate new P-256 EC keypair if file doesn't exist
+        try:
+            from cryptography.hazmat.primitives.asymmetric import ec
+            from cryptography.hazmat.primitives import serialization
+
+            private_key = ec.generate_private_key(ec.SECP256R1())
+            priv_num = private_key.private_numbers().private_value
+            priv_bytes = priv_num.to_bytes(32, byteorder="big")
+            priv_b64 = base64.urlsafe_b64encode(priv_bytes).decode().rstrip("=")
+
+            pub_key = private_key.public_key()
+            pub_bytes = pub_key.public_bytes(
+                encoding=serialization.Encoding.X962,
+                format=serialization.PublicFormat.UncompressedPoint,
+            )
+            pub_b64 = base64.urlsafe_b64encode(pub_bytes).decode().rstrip("=")
+
+            self.VAPID_PUBLIC_KEY = pub_b64
+            self.VAPID_PRIVATE_KEY = priv_b64
+
+            dev_file_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(dev_file_path, "w", encoding="utf-8") as f:
+                json.dump({"public_key": pub_b64, "private_key": priv_b64}, f, indent=2)
+        except Exception as e:
+            # Fallback for environments without filesystem write access
+            pass
 
     model_config = SettingsConfigDict(
         env_file=(".env", "backend/.env", "../.env"),

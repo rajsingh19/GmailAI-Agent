@@ -262,6 +262,8 @@ def get_endpoint_policy(path: str) -> Tuple[str, int, int]:
         return ("memory", getattr(settings, "RATE_LIMIT_MEMORY_LIMIT", 30), getattr(settings, "RATE_LIMIT_MEMORY_WINDOW", 60))
     elif "/personalization" in path:
         return ("personalization", getattr(settings, "RATE_LIMIT_PERSONALIZATION_LIMIT", 30), getattr(settings, "RATE_LIMIT_PERSONALIZATION_WINDOW", 60))
+    elif "/push" in path:
+        return ("push", getattr(settings, "RATE_LIMIT_PUSH_LIMIT", 20), getattr(settings, "RATE_LIMIT_PUSH_WINDOW", 60))
     else:
         return ("default", settings.RATE_LIMIT_DEFAULT_LIMIT, settings.RATE_LIMIT_DEFAULT_WINDOW)
 

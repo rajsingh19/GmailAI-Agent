@@ -384,7 +384,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ isAuthenticated }) => {
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="e.g., Review weekly project milestones"
+                  placeholder="e.g., Review weekly project updates"
                   required
                   className="w-full bg-zinc-800/80 border border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500"
                 />

@@ -242,14 +242,11 @@ export const MemoryManager: React.FC<MemoryManagerProps> = ({ isAuthenticated, o
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                Long-Term Personal Memory & Personalization
+                Memory & Personalization
               </h3>
-              <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full">
-                Milestone 11
-              </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Structured user facts, coding preferences, and project context with deterministic agent personalization.
+              Manage preferences, facts, and context your assistant remembers to tailor responses.
             </p>
           </div>
         </div>
@@ -273,7 +270,7 @@ export const MemoryManager: React.FC<MemoryManagerProps> = ({ isAuthenticated, o
             ) : (
               <>
                 <ToggleLeft className="w-4 h-4 text-slate-500" />
-                <span>Memory Disabled (Opt-In)</span>
+                <span>Memory Disabled</span>
               </>
             )}
           </button>
@@ -300,32 +297,37 @@ export const MemoryManager: React.FC<MemoryManagerProps> = ({ isAuthenticated, o
         <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 text-xs text-amber-300">
           <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
           <div>
-            <span className="font-semibold">Privacy-First Mode Active:</span> Personal Memory is currently turned off.
-            The assistant will not inject memories or infer new preferences in chat turns until you turn it on. Existing stored memories remain preserved safely.
+            <span className="font-semibold">Memory Disabled:</span> The assistant will not use stored memories in chat until enabled. Your saved memories remain preserved safely and can be re-enabled at any time.
           </div>
         </div>
       )}
+
+      {/* Security & Permissions Info Note */}
+      <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/60 text-xs text-slate-400 flex items-center gap-2">
+        <ShieldCheck className="w-4 h-4 text-blue-400 flex-shrink-0" />
+        <span>Memory provides context to tailor responses. It does not grant the assistant authorization to modify your external accounts or execute actions without your confirmation.</span>
+      </div>
 
       {/* Stats Summary Bar */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/60">
-            <div className="text-[11px] text-slate-400 font-medium">Total Memories</div>
+            <div className="text-[11px] text-slate-400 font-medium">Total Saved</div>
             <div className="text-lg font-bold text-white mt-0.5">{stats.total_memories}</div>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/60">
-            <div className="text-[11px] text-slate-400 font-medium">Active Memories</div>
+            <div className="text-[11px] text-slate-400 font-medium">Active</div>
             <div className="text-lg font-bold text-emerald-400 mt-0.5">{stats.active_memories}</div>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/60">
-            <div className="text-[11px] text-slate-400 font-medium">Deactivated</div>
+            <div className="text-[11px] text-slate-400 font-medium">Inactive</div>
             <div className="text-lg font-bold text-slate-400 mt-0.5">{stats.inactive_memories}</div>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/60">
-            <div className="text-[11px] text-slate-400 font-medium">Secret Scanning</div>
+            <div className="text-[11px] text-slate-400 font-medium">Privacy Guard</div>
             <div className="text-xs font-semibold text-blue-400 mt-1 flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Active Heuristic</span>
+              <span>User Isolated</span>
             </div>
           </div>
         </div>
@@ -373,16 +375,16 @@ export const MemoryManager: React.FC<MemoryManagerProps> = ({ isAuthenticated, o
         {loading ? (
           <div className="py-12 flex flex-col items-center justify-center text-slate-500 text-xs gap-2">
             <RefreshCw className="w-5 h-5 animate-spin text-purple-400" />
-            <span>Loading personal memories...</span>
+            <span>Loading memories...</span>
           </div>
         ) : memories.length === 0 ? (
           <div className="py-10 text-center rounded-xl bg-slate-950/30 border border-slate-800/50 p-6 space-y-2">
             <Brain className="w-8 h-8 text-slate-600 mx-auto" />
-            <div className="text-xs font-semibold text-slate-300">No personal memories found</div>
+            <div className="text-xs font-semibold text-slate-300">No memories yet</div>
             <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
               {searchQuery
                 ? 'No memories matched your search query.'
-                : 'Click "Add Memory" or say "Remember that I prefer..." in chat turns.'}
+                : "Add preferences or facts that you'd like your assistant to remember."}
             </p>
           </div>
         ) : (

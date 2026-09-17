@@ -60,6 +60,30 @@ class NotificationService:
         db.add(notification)
         try:
             await db.commit()
+
+            # Best-effort asynchronous Web Push delivery (does not block or fail in-app notification)
+            try:
+                from app.services.push_notification_service import PushNotificationService
+                if PushNotificationService.is_enabled():
+                    push_payload = {
+                        "title": title,
+                        "body": message or "",
+                        "type": notification_type,
+                        "notification_id": notification.id,
+                        "reminder_id": reminder_id,
+                        "source_type": source_type,
+                        "source_id": source_id,
+                        "url": "/",
+                    }
+                    asyncio.create_task(
+                        PushNotificationService.send_notification_to_user(
+                            user_id=user_id,
+                            payload=push_payload,
+                        )
+                    )
+            except Exception:
+                pass
+
             return notification
         except IntegrityError:
             await db.rollback()

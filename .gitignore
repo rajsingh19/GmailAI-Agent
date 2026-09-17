@@ -37,6 +37,8 @@ htmlcov/
 .env.*.local
 *.pem
 *.key
+.vapid_dev_keys.json
+backend/.vapid_dev_keys.json
 credentials.json
 client_secret*.json
 token.json

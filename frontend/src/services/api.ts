@@ -1570,5 +1570,131 @@ export async function setPersonalizationSessionOverride(
   return await response.json();
 }
 
+// ---------------------------------------------------------------------------
+// Web Push Notifications API
+// ---------------------------------------------------------------------------
 
+export interface PushDevice {
+  id: string;
+  endpoint: string;
+  user_agent: string | null;
+  created_at: string;
+  last_used_at: string | null;
+}
 
+export interface PushStatusResponse {
+  enabled: boolean;
+  vapid_public_key: string | null;
+  active_subscriptions: number;
+  devices: PushDevice[];
+}
+
+export interface PushTestResponse {
+  status: string;
+  message: string;
+  delivered_count: number;
+  failed_count: number;
+}
+
+export async function fetchVapidPublicKey(): Promise<{ vapid_public_key: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/notifications/push/vapid-public-key`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to fetch VAPID public key' }));
+    throw new Error(err.detail || `VAPID key error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function fetchPushStatus(): Promise<PushStatusResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/notifications/push/status`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to fetch push status' }));
+    throw new Error(err.detail || `Push status error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function subscribePushDevice(subscription: PushSubscription): Promise<{ id: string; endpoint: string }> {
+  const subJson = subscription.toJSON();
+  if (!subJson.endpoint || !subJson.keys?.p256dh || !subJson.keys?.auth) {
+    throw new Error('Malformed push subscription object from browser');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/notifications/push/subscribe`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      endpoint: subJson.endpoint,
+      keys: {
+        p256dh: subJson.keys.p256dh,
+        auth: subJson.keys.auth,
+      },
+      user_agent: navigator.userAgent,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to register push subscription' }));
+    throw new Error(err.detail || `Push subscribe error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function unsubscribePushDevice(endpoint: string): Promise<{ status: string; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/notifications/push/unsubscribe`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ endpoint }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to unsubscribe push device' }));
+    throw new Error(err.detail || `Push unsubscribe error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function sendTestPushNotification(title?: string, body?: string): Promise<PushTestResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/notifications/push/test`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ title, body }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to send test push notification' }));
+    throw new Error(err.detail || `Test push error (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}

@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Sparkles,
+  Sliders,
+  CheckCircle2,
+  RefreshCw,
+  Clock,
+  Check,
+} from 'lucide-react';
+import {
   fetchPersonalizationConfig,
   updatePersonalizationConfig,
-  previewPersonalization,
   setPersonalizationSessionOverride,
   PersonalizationConfigResponse,
   PersonalizationLevelType,
-  PersonalizationPreviewItem,
 } from '../services/api';
 
 interface PersonalizationSettingsProps {
@@ -27,11 +33,6 @@ export const PersonalizationSettings: React.FC<PersonalizationSettingsProps> = (
   // Session override state
   const [sessionBypassActive, setSessionBypassActive] = useState<boolean>(false);
   const [overrideLoading, setOverrideLoading] = useState<boolean>(false);
-
-  // Preview state
-  const [previewQuery, setPreviewQuery] = useState<string>('How do I build an API endpoint for tasks?');
-  const [previewItems, setPreviewItems] = useState<PersonalizationPreviewItem[]>([]);
-  const [previewLoading, setPreviewLoading] = useState<boolean>(false);
 
   useEffect(() => {
     loadConfig();
@@ -57,7 +58,7 @@ export const PersonalizationSettings: React.FC<PersonalizationSettingsProps> = (
     try {
       const updated = await updatePersonalizationConfig({ personalization_enabled: enabled });
       setConfig(updated);
-      setSuccessMessage(enabled ? 'Personalization enabled' : 'Personalization disabled');
+      setSuccessMessage(enabled ? 'Personalization activated' : 'Personalization turned off');
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err: any) {
       setError(err.message || 'Failed to update personalization setting');
@@ -110,7 +111,7 @@ export const PersonalizationSettings: React.FC<PersonalizationSettingsProps> = (
       setSessionBypassActive(nextState);
       setSuccessMessage(
         nextState
-          ? 'Personalization bypassed for this session.'
+          ? 'Personalization temporarily bypassed for this session.'
           : 'Personalization resumed for this session.'
       );
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -121,306 +122,220 @@ export const PersonalizationSettings: React.FC<PersonalizationSettingsProps> = (
     }
   };
 
-  const handleRunPreview = async () => {
-    if (!previewQuery.trim()) return;
-    setPreviewLoading(true);
-    setError(null);
-    try {
-      const res = await previewPersonalization(previewQuery.trim(), 10);
-      setPreviewItems(res.items);
-    } catch (err: any) {
-      setError(err.message || 'Failed to run preview');
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
   return (
-    <div className="personalization-settings-panel" style={{
-      background: 'rgba(255, 255, 255, 0.95)',
-      borderRadius: '16px',
-      padding: '24px',
-      boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-      border: '1px solid #e2e8f0',
-      maxWidth: '780px',
-      margin: '0 auto',
-      color: '#1e293b',
-      fontFamily: 'Inter, system-ui, sans-serif'
-    }}>
+    <div className="glass-panel-glow rounded-2xl p-6 sm:p-8 transition-all duration-300">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>Personalization Intelligence</span>
-            <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: '12px', background: '#e0e7ff', color: '#4338ca', fontWeight: 500 }}>
-              Milestone 12
-            </span>
-          </h2>
-          <p style={{ margin: '4px 0 0', fontSize: '0.9rem', color: '#64748b' }}>
-            Safely modulates response style and technical context without altering permissions or security policies.
-          </p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500/20 to-purple-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-lg shadow-indigo-500/10">
+            <Sliders className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2.5">
+              Personalization Settings
+              {config?.personalization_enabled ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                  Personalization Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                  Standard Mode
+                </span>
+              )}
+            </h2>
+            <p className="text-sm text-slate-400 mt-0.5">
+              Optionally tailor how the assistant structures responses based on your communication style and project context.
+            </p>
+          </div>
         </div>
+
         {onClose && (
           <button
             onClick={onClose}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              fontSize: '1.2rem',
-              cursor: 'pointer',
-              color: '#94a3b8',
-              padding: '4px 8px',
-            }}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-800 transition-colors cursor-pointer"
           >
             ✕
           </button>
         )}
       </div>
 
+      {/* Permissions & Security Note */}
+      <div className="mt-4 p-3 rounded-xl bg-slate-950/40 border border-slate-800/60 text-xs text-slate-400 leading-relaxed">
+        <strong className="text-slate-300">Privacy Note:</strong> Personalization only affects the style and context of assistant responses. It does not grant permissions to modify your accounts or execute actions automatically.
+      </div>
+
       {/* Status Alerts */}
       {error && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.9rem' }}>
-          {error}
+        <div className="mt-5 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 flex items-start gap-3 text-xs">
+          <span>{error}</span>
         </div>
       )}
       {successMessage && (
-        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.9rem' }}>
-          ✓ {successMessage}
+        <div className="mt-5 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-center gap-2 text-xs">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <span>{successMessage}</span>
         </div>
       )}
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>Loading personalization configuration...</div>
+        <div className="py-12 text-center text-slate-400 text-sm flex items-center justify-center gap-2">
+          <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
+          <span>Loading personalization settings...</span>
+        </div>
       ) : config ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className="mt-6 space-y-6">
           {/* Master Toggle */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '16px',
-            background: '#f8fafc',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-          }}>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '1rem' }}>Master Personalization</div>
-              <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                {config.personalization_enabled ? 'Active — Personal preferences adapt responses.' : 'Disabled — Standard non-personalized assistant responses.'}
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="text-base font-semibold text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-400" />
+                Master Personalization
               </div>
+              <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                {config.personalization_enabled
+                  ? 'Enabled — The assistant incorporates your preferred response style and workflow preferences.'
+                  : 'Disabled — The assistant responds using default standard formatting.'}
+              </p>
             </div>
             <button
               onClick={() => handleToggleEnabled(!config.personalization_enabled)}
               disabled={saving}
-              style={{
-                padding: '8px 18px',
-                borderRadius: '8px',
-                border: 'none',
-                fontWeight: 600,
-                cursor: saving ? 'not-allowed' : 'pointer',
-                background: config.personalization_enabled ? '#4f46e5' : '#94a3b8',
-                color: '#ffffff',
-                transition: 'background 0.2s',
-              }}
+              className={`px-5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 ${
+                config.personalization_enabled
+                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+              }`}
             >
-              {config.personalization_enabled ? 'Enabled' : 'Disabled'}
+              {config.personalization_enabled ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  Personalization ON
+                </>
+              ) : (
+                'Turn ON'
+              )}
             </button>
           </div>
 
-          {/* Level Selector */}
-          <div style={{
-            opacity: config.personalization_enabled ? 1 : 0.5,
-            pointerEvents: config.personalization_enabled ? 'auto' : 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px'
-          }}>
-            <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>Personalization Level</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-              {(['NONE', 'LOW', 'MEDIUM', 'HIGH'] as PersonalizationLevelType[]).map((lvl) => (
-                <button
-                  key={lvl}
-                  onClick={() => handleLevelChange(lvl)}
-                  disabled={saving}
-                  style={{
-                    padding: '10px',
-                    borderRadius: '8px',
-                    border: config.personalization_level === lvl ? '2px solid #4f46e5' : '1px solid #cbd5e1',
-                    background: config.personalization_level === lvl ? '#eef2ff' : '#ffffff',
-                    color: config.personalization_level === lvl ? '#4338ca' : '#475569',
-                    fontWeight: config.personalization_level === lvl ? 600 : 500,
-                    cursor: 'pointer',
-                    textAlign: 'center',
-                    fontSize: '0.85rem',
-                  }}
-                >
-                  <div>{lvl}</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
-                    {lvl === 'NONE' ? '0 items' : lvl === 'LOW' ? 'Style only' : lvl === 'MEDIUM' ? 'Style + Project' : 'Full context'}
-                  </div>
-                </button>
-              ))}
+          {/* Personalization Level */}
+          <div
+            className={`space-y-3 transition-opacity ${
+              config.personalization_enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'
+            }`}
+          >
+            <div className="text-sm font-semibold text-slate-200">Personalization Level</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {(['NONE', 'LOW', 'MEDIUM', 'HIGH'] as PersonalizationLevelType[]).map((lvl) => {
+                const isSelected = config.personalization_level === lvl;
+                return (
+                  <button
+                    key={lvl}
+                    onClick={() => handleLevelChange(lvl)}
+                    disabled={saving || !config.personalization_enabled}
+                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-600/15 border-indigo-500/50 text-white shadow-sm ring-1 ring-indigo-500/30'
+                        : 'bg-slate-900/50 hover:bg-slate-800/60 border-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold tracking-wide">{lvl}</span>
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-indigo-400"></span>}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      {lvl === 'NONE'
+                        ? 'Standard output'
+                        : lvl === 'LOW'
+                        ? 'Response style only'
+                        : lvl === 'MEDIUM'
+                        ? 'Style + project context'
+                        : 'Full contextual awareness'}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Categories */}
-          <div style={{
-            opacity: config.personalization_enabled ? 1 : 0.5,
-            pointerEvents: config.personalization_enabled ? 'auto' : 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            background: '#f8fafc',
-            padding: '14px',
-            borderRadius: '10px',
-            border: '1px solid #e2e8f0',
-          }}>
-            <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px' }}>Active Scopes</div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.88rem', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={config.personalize_response_style}
-                onChange={(e) => handleCategoryToggle('style', e.target.checked)}
-                disabled={saving}
-              />
-              <span>Response Style (conciseness, technical depth)</span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.88rem', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={config.personalize_project_context}
-                onChange={(e) => handleCategoryToggle('project', e.target.checked)}
-                disabled={saving}
-              />
-              <span>Project Context (frameworks, stack preferences)</span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.88rem', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={config.personalize_workflow_habits}
-                onChange={(e) => handleCategoryToggle('workflow', e.target.checked)}
-                disabled={saving}
-              />
-              <span>Workflow Habits (task tags, reminder phrasing)</span>
-            </label>
+          {/* Active Scopes */}
+          <div
+            className={`bg-slate-900/40 border border-slate-800/80 rounded-xl p-5 space-y-3 transition-opacity ${
+              config.personalization_enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'
+            }`}
+          >
+            <div className="text-sm font-semibold text-slate-200">Active Scopes</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className="flex items-start gap-3 p-3 rounded-lg bg-slate-950/40 border border-slate-800/60 hover:border-slate-700 cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
+                  checked={config.personalize_response_style}
+                  onChange={(e) => handleCategoryToggle('style', e.target.checked)}
+                  disabled={saving || !config.personalization_enabled}
+                  className="mt-0.5 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+                <div>
+                  <div className="text-xs font-semibold text-slate-200">Response Style</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Conciseness and communication tone</div>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 p-3 rounded-lg bg-slate-950/40 border border-slate-800/60 hover:border-slate-700 cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
+                  checked={config.personalize_project_context}
+                  onChange={(e) => handleCategoryToggle('project', e.target.checked)}
+                  disabled={saving || !config.personalization_enabled}
+                  className="mt-0.5 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+                <div>
+                  <div className="text-xs font-semibold text-slate-200">Project Context</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Technology stacks and project domain</div>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 p-3 rounded-lg bg-slate-950/40 border border-slate-800/60 hover:border-slate-700 cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
+                  checked={config.personalize_workflow_habits}
+                  onChange={(e) => handleCategoryToggle('workflow', e.target.checked)}
+                  disabled={saving || !config.personalization_enabled}
+                  className="mt-0.5 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+                <div>
+                  <div className="text-xs font-semibold text-slate-200">Workflow Habits</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Task organization and scheduling habits</div>
+                </div>
+              </label>
+            </div>
           </div>
 
-          {/* Ephemeral Session Override */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '12px 16px',
-            background: sessionBypassActive ? '#fff1f2' : '#f0fdf4',
-            borderRadius: '10px',
-            border: sessionBypassActive ? '1px solid #fecdd3' : '1px solid #bbf7d0',
-          }}>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '0.88rem', color: sessionBypassActive ? '#9f1239' : '#166534' }}>
-                Current Session Override: {sessionBypassActive ? 'Bypassed (Turn Off)' : 'Active (Standard)'}
+          {/* Session Bypass */}
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-slate-800 text-slate-400">
+                <Clock className="w-4 h-4" />
               </div>
-              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                1-hour temporary bypass for session ({currentSessionId.slice(0, 8)}...).
+              <div>
+                <div className="text-xs font-semibold text-slate-200">
+                  Session Override: {sessionBypassActive ? 'Bypassed (Turned Off)' : 'Normal'}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  Temporarily disable personalization for this current session without changing saved settings.
+                </div>
               </div>
             </div>
             <button
               onClick={handleToggleSessionBypass}
               disabled={overrideLoading}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                border: '1px solid #cbd5e1',
-                background: '#ffffff',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                fontWeight: 500,
-              }}
+              className="px-3.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
             >
               {sessionBypassActive ? 'Resume Personalization' : 'Bypass for this Session'}
             </button>
-          </div>
-
-          {/* Interactive Preview Engine */}
-          <div style={{ marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-            <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '8px' }}>
-              Personalization Explainability Preview
-            </div>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-              <input
-                type="text"
-                value={previewQuery}
-                onChange={(e) => setPreviewQuery(e.target.value)}
-                placeholder="Enter test user query..."
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '0.88rem',
-                }}
-              />
-              <button
-                onClick={handleRunPreview}
-                disabled={previewLoading || !previewQuery.trim()}
-                style={{
-                  padding: '8px 16px',
-                  background: '#334155',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontWeight: 500,
-                  fontSize: '0.85rem',
-                  cursor: previewLoading ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {previewLoading ? 'Testing...' : 'Test Relevance'}
-              </button>
-            </div>
-
-            {previewItems.length > 0 ? (
-              <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
-                      <th style={{ padding: '8px 12px' }}>Category</th>
-                      <th style={{ padding: '8px 12px' }}>Key</th>
-                      <th style={{ padding: '8px 12px' }}>Score</th>
-                      <th style={{ padding: '8px 12px' }}>Status</th>
-                      <th style={{ padding: '8px 12px' }}>Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewItems.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '8px 12px', color: '#64748b' }}>{item.category}</td>
-                        <td style={{ padding: '8px 12px', fontWeight: 500 }}>{item.key}</td>
-                        <td style={{ padding: '8px 12px', fontWeight: 600 }}>{item.relevance_score}</td>
-                        <td style={{ padding: '8px 12px' }}>
-                          <span style={{
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            background: item.is_selected ? '#dcfce7' : '#f1f5f9',
-                            color: item.is_selected ? '#166534' : '#64748b',
-                          }}>
-                            {item.is_selected ? 'APPLIED' : 'FILTERED'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '8px 12px', color: '#64748b' }}>{item.selection_reason}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                Click 'Test Relevance' to simulate candidate selection for the query.
-              </div>
-            )}
           </div>
         </div>
       ) : null}
     </div>
   );
 };
+

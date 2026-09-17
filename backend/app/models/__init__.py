@@ -7,6 +7,7 @@ from app.models.notification import Notification
 from app.models.knowledge import KnowledgeDocument, KnowledgeChunk
 from app.models.user_preference import UserPreference
 from app.models.user_memory import UserMemory
+from app.models.push_subscription import PushSubscription
 
 __all__ = [
     "User",
@@ -19,6 +20,7 @@ __all__ = [
     "KnowledgeChunk",
     "UserPreference",
     "UserMemory",
+    "PushSubscription",
 ]
 
 
