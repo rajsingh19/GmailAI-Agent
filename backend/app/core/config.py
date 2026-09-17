@@ -186,6 +186,29 @@ class Settings(BaseSettings):
     RATE_LIMIT_PUSH_LIMIT: int = 20
     RATE_LIMIT_PUSH_WINDOW: int = 60
 
+    # WhatsApp Notifications (Twilio)
+    WHATSAPP_ENABLED: bool = False
+    TWILIO_ACCOUNT_SID: Optional[str] = None
+    TWILIO_AUTH_TOKEN: Optional[str] = None
+    TWILIO_WHATSAPP_FROM: Optional[str] = None  # e.g. "whatsapp:+14155238886"
+    TWILIO_API_KEY: Optional[str] = None
+    TWILIO_API_SECRET: Optional[str] = None
+    TWILIO_SANDBOX_MODE: bool = True
+    TWILIO_STATUS_CALLBACK_URL: Optional[str] = None
+    # Approved production WhatsApp message templates
+    TWILIO_WHATSAPP_REMINDER_TEMPLATE: Optional[str] = None
+    TWILIO_WHATSAPP_TASK_TEMPLATE: Optional[str] = None
+    TWILIO_WHATSAPP_INTERVIEW_TEMPLATE: Optional[str] = None
+    TWILIO_WHATSAPP_PROACTIVE_TEMPLATE: Optional[str] = None
+    TWILIO_WHATSAPP_TEST_TEMPLATE: Optional[str] = None
+    # WhatsApp Rate Limiting
+    RATE_LIMIT_WHATSAPP_LIMIT: int = 10
+    RATE_LIMIT_WHATSAPP_WINDOW: int = 60
+    RATE_LIMIT_WHATSAPP_TEST_LIMIT: int = 3
+    RATE_LIMIT_WHATSAPP_TEST_WINDOW: int = 60
+    RATE_LIMIT_WHATSAPP_GLOBAL_LIMIT: int = 100
+    RATE_LIMIT_WHATSAPP_GLOBAL_WINDOW: int = 3600
+
     @property
     def effective_model_name(self) -> str:
         """Returns the configured model name, prioritizing GEMINI_MODEL over AI_MODEL_NAME."""
