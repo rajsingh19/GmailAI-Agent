@@ -129,9 +129,20 @@ export const WhatsAppSettings: React.FC = () => {
     try {
       const res = await sendTestWhatsAppNotification();
       if (res.success) {
-        setSuccessMessage('Test notification sent to your WhatsApp number.');
+        setSuccessMessage('Test notification sent to your WhatsApp number. Check your device.');
       } else {
-        setError(res.message || "Couldn't send the test message. Please try again.");
+        // Provide actionable guidance for known error cases
+        const code = res.error_code || '';
+        if (code === '21654') {
+          setError(
+            'Twilio requires a Content Template for business-initiated messages (outside the 24-hour window). ' +
+            'Add TWILIO_WHATSAPP_TEST_TEMPLATE=HXxxxxxxxx to your .env file with your Twilio Content Template SID, then restart the backend.'
+          );
+        } else if (code === '63007') {
+          setError('You have not joined the WhatsApp Sandbox yet. Send "join <sandbox-code>" to +14155238886 from your WhatsApp device first.');
+        } else {
+          setError(res.message || "Couldn't send the test message. Please try again.");
+        }
       }
       // Refresh status to capture delivery SID
       const refreshed = await fetchWhatsAppStatus();
@@ -142,6 +153,7 @@ export const WhatsAppSettings: React.FC = () => {
       setTestLoading(false);
     }
   };
+
 
   const getStatusBadge = () => {
     if (!status) return null;

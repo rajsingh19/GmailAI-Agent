@@ -29,7 +29,8 @@ logger = logging.getLogger(settings.PROJECT_NAME)
 # 63007: Twilio WhatsApp sandbox opt-in missing
 # 63016: Template parameters mismatch
 PERMANENT_TWILIO_ERROR_CODES = {
-    21211, 21408, 21610, 21614, 20003, 20404, 63007, 63016, 63032
+    21211, 21408, 21610, 21614, 20003, 20404, 63007, 63016, 63032,
+    21654,  # ContentSid Required — outside 24-hour customer-service window
 }
 
 
@@ -139,12 +140,48 @@ class TwilioWhatsAppProvider(WhatsAppDeliveryProvider):
             "To": to_formatted,
         }
 
-        # Sandbox Mode vs Production Mode
+        # ── Sandbox Mode vs Production Mode ─────────────────────────────────────────
+        #
+        # Twilio WhatsApp has a 24-hour customer-service window:
+        #   • INSIDE  window (user messaged you in last 24h): free-form Body works.
+        #   • OUTSIDE window (business-initiated): Content Template (ContentSid) required,
+        #     even in Sandbox.
+        #
+        # Strategy:
+        #   Sandbox: use ContentSid template if TWILIO_WHATSAPP_TEST_TEMPLATE is set
+        #            (handles business-initiated outside 24h window).
+        #            Fall back to Body-only if no template configured
+        #            (works only inside the 24h window).
+        #   Production: ContentSid always required — reject locally if missing.
+        # ─────────────────────────────────────────────────────────────────────────────
+        import json as _json
+
         if self.sandbox_mode:
-            # SANDBOX MODE: Twilio Sandbox uses free-form Body messages during an active session
-            data["Body"] = message
+            # Prefer a configured Content Template (handles outside-24h-window case)
+            sandbox_test_template = getattr(settings, "TWILIO_WHATSAPP_TEST_TEMPLATE", None)
+            sandbox_template_sid = None
+            if template_name:
+                sandbox_template_sid = getattr(
+                    settings, f"TWILIO_WHATSAPP_{template_name.upper()}_TEMPLATE", None
+                )
+            if not sandbox_template_sid:
+                sandbox_template_sid = sandbox_test_template
+
+            if sandbox_template_sid:
+                # Use Content Template — works both inside and outside 24h window
+                logger.debug(
+                    "Sandbox: using ContentSid template '%s' for '%s'",
+                    sandbox_template_sid[:8] + "...", template_name or "test"
+                )
+                data["ContentSid"] = sandbox_template_sid
+                if template_variables:
+                    data["ContentVariables"] = _json.dumps(template_variables)
+            else:
+                # No template configured — send Body only (works inside 24h window)
+                logger.debug("Sandbox: sending Body-only message (requires active 24h session window)")
+                data["Body"] = message
         else:
-            # PRODUCTION MODE: Business-initiated messages require approved WhatsApp Content Templates (ContentSid)
+            # PRODUCTION MODE: Business-initiated messages require approved Content Templates (ContentSid)
             template_sid = None
             if template_name:
                 template_sid = getattr(settings, f"TWILIO_WHATSAPP_{template_name.upper()}_TEMPLATE", None)
@@ -154,8 +191,7 @@ class TwilioWhatsAppProvider(WhatsAppDeliveryProvider):
             if template_sid:
                 data["ContentSid"] = template_sid
                 if template_variables:
-                    import json
-                    data["ContentVariables"] = json.dumps(template_variables)
+                    data["ContentVariables"] = _json.dumps(template_variables)
             else:
                 logger.warning(
                     "Production WhatsApp message rejected: missing ContentSid for template '%s'",
@@ -165,7 +201,11 @@ class TwilioWhatsAppProvider(WhatsAppDeliveryProvider):
                     success=False,
                     status="failed",
                     error_code="MISSING_CONTENT_SID",
-                    error_message=f"ContentSid required for production WhatsApp notification type '{template_name or 'unspecified'}'.",
+                    error_message=(
+                        f"ContentSid required for production WhatsApp notification type "
+                        f"'{template_name or 'unspecified'}'. Set TWILIO_WHATSAPP_"
+                        f"{(template_name or 'TEST').upper()}_TEMPLATE in your environment."
+                    ),
                     is_transient=False,
                 )
 
@@ -207,6 +247,19 @@ class TwilioWhatsAppProvider(WhatsAppDeliveryProvider):
 
                 is_transient = (status_code >= 500 or status_code == 429) and (error_code not in PERMANENT_TWILIO_ERROR_CODES)
 
+                # Provide actionable error messages for known Twilio error codes
+                if error_code == 21654:
+                    user_msg = (
+                        "WhatsApp message requires a Content Template (ContentSid). "
+                        "You are outside the 24-hour customer-service window. "
+                        "Set TWILIO_WHATSAPP_TEST_TEMPLATE=HX... in your .env with your Twilio "
+                        "Content Template SID, then restart the backend."
+                    )
+                elif error_code == 63007:
+                    user_msg = "Recipient has not joined the WhatsApp Sandbox. Send 'join <code>' to +14155238886 first."
+                else:
+                    user_msg = str(error_msg)[:250]
+
                 logger.warning(
                     "Twilio WhatsApp send failed: HTTP %s code=%s msg=%s to=%s",
                     status_code,
@@ -219,7 +272,7 @@ class TwilioWhatsAppProvider(WhatsAppDeliveryProvider):
                     status="failed",
                     message_sid=resp_json.get("sid"),
                     error_code=str(error_code or status_code),
-                    error_message=str(error_msg)[:250],
+                    error_message=user_msg,
                     is_transient=is_transient,
                 )
 
