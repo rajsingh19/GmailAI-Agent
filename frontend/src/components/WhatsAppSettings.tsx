@@ -130,29 +130,48 @@ export const WhatsAppSettings: React.FC = () => {
       const res = await sendTestWhatsAppNotification();
       if (res.success) {
         setSuccessMessage('Test notification sent to your WhatsApp number. Check your device.');
+        // Refresh status — backend already cleared last_error and set status=enabled on success
+        const refreshed = await fetchWhatsAppStatus();
+        // Ensure stale last_error from previous delivery_issue is cleared in local state
+        setStatus(refreshed ? { ...refreshed, last_error: null } : refreshed);
       } else {
-        // Provide actionable guidance for known error cases
+        // ── Correct error classification ──────────────────────────────────────
+        // 21654: ContentVariables provided without ContentSid — a config error,
+        //        NOT a session/window expiry error.
+        // 63016: Outside the 24-hour WhatsApp customer-service window.
+        // 63007: Recipient not joined / no opt-in.
+        // ─────────────────────────────────────────────────────────────────────
         const code = res.error_code || '';
-        if (code === '21654') {
+        if (code === '63016' || code === '63032') {
           setError(
-            'Twilio requires a Content Template for business-initiated messages (outside the 24-hour window). ' +
-            'Add TWILIO_WHATSAPP_TEST_TEMPLATE=HXxxxxxxxx to your .env file with your Twilio Content Template SID, then restart the backend.'
+            'Your WhatsApp Sandbox session has expired (24-hour window). ' +
+            'Send the Sandbox join message again — ' +
+            'send "join <sandbox-code>" to +14155238886 — then click Send Test Notification again.'
           );
         } else if (code === '63007') {
-          setError('You have not joined the WhatsApp Sandbox yet. Send "join <sandbox-code>" to +14155238886 from your WhatsApp device first.');
+          setError(
+            'You have not joined the WhatsApp Sandbox. ' +
+            'Send "join <sandbox-code>" to +14155238886 from your WhatsApp device, then retry.'
+          );
+        } else if (code === '21654') {
+          setError(
+            'WhatsApp rejected the message: ContentSid is required when ContentVariables are supplied. ' +
+            'Check your Twilio Content Template configuration.'
+          );
         } else {
           setError(res.message || "Couldn't send the test message. Please try again.");
         }
+        // Refresh status even on failure to get latest state
+        const refreshed = await fetchWhatsAppStatus();
+        setStatus(refreshed);
       }
-      // Refresh status to capture delivery SID
-      const refreshed = await fetchWhatsAppStatus();
-      setStatus(refreshed);
     } catch (err: any) {
       setError(err.message || "Couldn't send the test message. Please try again.");
     } finally {
       setTestLoading(false);
     }
   };
+
 
 
   const getStatusBadge = () => {
