@@ -233,12 +233,13 @@ async def test_idempotency_preserved_across_scans(test_db: AsyncSession, mock_gm
     detector = GmailDetector(gmail_service=mock_gmail_service)
     monitor = ProactiveMonitorService(gmail_detector=detector)
 
+    now = datetime(2026, 9, 16, 12, 0, 0, tzinfo=timezone.utc)
     # Cycle 1 -> 1 notification created
-    res1 = await monitor.evaluate_user_proactive(test_db, "u_idemp_test")
+    res1 = await monitor.evaluate_user_proactive(test_db, "u_idemp_test", now_utc=now)
     assert res1["notifications_created"] == 1
 
     # Cycle 2 with same email -> 0 duplicates created
-    res2 = await monitor.evaluate_user_proactive(test_db, "u_idemp_test")
+    res2 = await monitor.evaluate_user_proactive(test_db, "u_idemp_test", now_utc=now)
     assert res2["notifications_created"] == 0
 
 

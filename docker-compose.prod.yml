@@ -52,8 +52,11 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost}
       - TRUSTED_PROXY_IPS=frontend,127.0.0.1,172.16.0.0/12
+      - RESUME_STORAGE_DIR=/app/data/resumes
       - METRICS_ENABLED=true
       - METRICS_SECRET_TOKEN=${METRICS_SECRET_TOKEN:-}
+    volumes:
+      - resumedata:/app/data/resumes
     networks:
       - internal_net
     healthcheck:
@@ -86,3 +89,4 @@ networks:
 
 volumes:
   pgdata:
+  resumedata:

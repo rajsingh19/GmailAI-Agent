@@ -9,6 +9,7 @@ import { GmailPage } from './components/pages/GmailPage';
 import { CalendarPage } from './components/pages/CalendarPage';
 import { RemindersPage } from './components/pages/RemindersPage';
 import { SettingsPage } from './components/pages/SettingsPage';
+import { JobsPage } from './components/pages/JobsPage';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
@@ -86,6 +87,7 @@ export const App: React.FC = () => {
       activeTab={activeTab}
       onTabChange={setActiveTab}
       authStatus={authStatus}
+      authLoading={authLoading}
       unreadCount={unreadCount}
       onSearch={handleGlobalSearch}
     >
@@ -124,7 +126,15 @@ export const App: React.FC = () => {
       {activeTab === 'dashboard' && (
         <DashboardPage
           authStatus={authStatus}
+          authLoading={authLoading}
           onNavigate={setActiveTab}
+        />
+      )}
+
+      {activeTab === 'jobs' && (
+        <JobsPage
+          authStatus={authStatus}
+          onNotify={handleNotify}
         />
       )}
 

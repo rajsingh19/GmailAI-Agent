@@ -6,7 +6,6 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -14,7 +13,7 @@ from app.api.v1.endpoints import auth, metrics
 from app.api.v1.endpoints.health import router as health_router
 from app.api.v1.router import api_v1_router
 from app.core.config import settings
-from app.core.context import set_request_id, set_user_id
+from app.core.context import set_request_id
 from app.core.errors import (
     AppException,
     RateLimitExceededError,
@@ -39,6 +38,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("CORS Allowed Origins: %s", settings.ALLOWED_ORIGINS)
     logger.info("OAuth Redirect URI: %s", settings.GOOGLE_REDIRECT_URI)
+    logger.info(
+        "Active AI Model: %s, Embedding Model: %s",
+        settings.effective_model_name,
+        settings.effective_embedding_model,
+    )
     if settings.GOOGLE_CLIENT_ID:
         logger.info(
             "Google OAuth configured with Client ID: %s...%s",
@@ -119,10 +123,18 @@ def create_application() -> FastAPI:
         elif exc.status_code == 429:
             code = "RATE_LIMIT_EXCEEDED"
 
+        message = str(exc.detail)
+        details = None
+        if isinstance(exc.detail, dict):
+            code = exc.detail.get("code", code)
+            message = exc.detail.get("message", str(exc.detail))
+            details = exc.detail
+
         return make_error_response(
             code=code,
-            message=str(exc.detail),
+            message=message,
             status_code=exc.status_code,
+            details=details,
             headers=exc.headers,
         )
 
@@ -138,10 +150,18 @@ def create_application() -> FastAPI:
         elif exc.status_code == 429:
             code = "RATE_LIMIT_EXCEEDED"
 
+        message = str(exc.detail)
+        details = None
+        if isinstance(exc.detail, dict):
+            code = exc.detail.get("code", code)
+            message = exc.detail.get("message", str(exc.detail))
+            details = exc.detail
+
         return make_error_response(
             code=code,
-            message=str(exc.detail),
+            message=message,
             status_code=exc.status_code,
+            details=details,
             headers=exc.headers,
         )
 
@@ -184,6 +204,7 @@ def create_application() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
+        allow_origin_regex=r"^(chrome-extension://.*|moz-extension://.*|https://.*\.linkedin\.com)",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

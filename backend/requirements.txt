@@ -9,6 +9,7 @@ python-dotenv>=1.0.0,<2.0.0
 cryptography>=42.0.0
 sqlalchemy>=2.0.30
 aiosqlite>=0.20.0
+asyncpg>=0.29.0
 alembic>=1.13.0
 pyjwt>=2.8.0
 google-api-python-client>=2.130.0
@@ -16,4 +17,6 @@ google-auth>=2.29.0
 apscheduler>=3.10.4,<4.0.0
 python-dateutil>=2.9.0
 redis>=5.0.0
-
+pypdf>=5.0.0
+python-multipart>=0.0.9
+beautifulsoup4>=4.12.0

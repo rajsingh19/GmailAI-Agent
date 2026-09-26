@@ -76,3 +76,66 @@ class GmailMessageListResponse(BaseModel):
     result_size_estimate: int = Field(0, description="Estimated total matching messages")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class GmailReplyDraftRequest(BaseModel):
+    """Request payload for on-demand smart reply drafting."""
+    tone: Optional[str] = Field(
+        default="professional",
+        description="Desired tone for the reply (e.g., 'professional', 'friendly', 'concise', 'formal', 'direct')",
+    )
+    custom_instructions: Optional[str] = Field(
+        default=None,
+        max_length=1000,
+        description="Optional custom user guidelines or specific facts to incorporate into the reply",
+    )
+    include_thread_context: bool = Field(
+        default=True,
+        description="Whether to retrieve and analyze prior thread messages if available",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GmailReplyDraftSaveRequest(BaseModel):
+    """Request payload for saving or autosaving a Smart Reply draft."""
+    reply_body: str = Field(..., description="Draft reply body text to persist")
+    tone: Optional[str] = Field(default="professional", description="Tone of the reply")
+    custom_instructions: Optional[str] = Field(
+        default=None,
+        max_length=1000,
+        description="Optional custom user notes or guidelines",
+    )
+    placeholders_detected: List[str] = Field(
+        default_factory=list,
+        description="List of detected placeholder tags (e.g. '[Your Name]') requiring review",
+    )
+    thread_id: Optional[str] = Field(None, description="Optional Gmail thread ID")
+    subject: Optional[str] = Field(None, description="Optional reply subject")
+    recipient: Optional[str] = Field(None, description="Optional recipient email/name")
+    gmail_draft_id: Optional[str] = Field(None, description="Associated Gmail API draft ID if saved to mailbox")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GmailReplyDraftResponse(BaseModel):
+    """Generated or persisted smart reply draft response."""
+    id: Optional[str] = Field(None, description="Database record ID if persisted")
+    message_id: str = Field(..., description="ID of the email message being replied to")
+    thread_id: Optional[str] = Field(None, description="Gmail thread ID")
+    gmail_draft_id: Optional[str] = Field(None, description="Associated Gmail API draft ID if saved to mailbox")
+    gmail_web_url: Optional[str] = Field(None, description="Direct URL to view/edit draft in Gmail")
+    subject: str = Field(..., description="Suggested reply subject")
+    recipient: str = Field(..., description="Sender of the original email to reply to")
+    reply_body: str = Field(..., description="Generated/saved reply email body text")
+    tone_used: str = Field(..., description="Tone applied in generation or save")
+    custom_instructions: Optional[str] = Field(None, description="Custom instructions used")
+    placeholders_detected: List[str] = Field(
+        default_factory=list,
+        description="List of detected placeholder tags requiring user review",
+    )
+    created_at: Optional[str] = Field(None, description="ISO timestamp of draft creation")
+    updated_at: Optional[str] = Field(None, description="ISO timestamp of last update")
+
+    model_config = ConfigDict(from_attributes=True)
+

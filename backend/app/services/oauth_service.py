@@ -61,6 +61,13 @@ class GoogleAPIError(OAuthError):
     pass
 
 
+class InsufficientScopesError(OAuthError):
+    """Raised when required scopes (e.g. Gmail or Calendar) were not granted by the user."""
+    def __init__(self, message: str, missing_scopes: Optional[List[str]] = None):
+        super().__init__(message)
+        self.missing_scopes = missing_scopes or []
+
+
 # =============================================================================
 # OAuth Service
 # =============================================================================
@@ -88,29 +95,58 @@ class OAuthService:
             )
 
     @classmethod
-    def create_authorization_url(cls, state: str) -> str:
+    def create_authorization_url(cls, state: str, reconnect: bool = False, prompt: Optional[str] = None) -> str:
         """
         Builds the Google OAuth 2.0 authorization URL.
-        Enforces least privilege (Gmail read-only + userinfo), offline access,
+        Enforces least privilege (Gmail read-only + userinfo + Calendar read-only), offline access,
         and consent prompt to ensure a refresh token is returned.
+        When reconnect=True, forces select_account and prompt=consent with include_granted_scopes=false.
         """
         cls._validate_client_credentials()
 
+        prompt_val = prompt or ("consent select_account" if reconnect else "consent")
         params = {
             "client_id": settings.GOOGLE_CLIENT_ID,
             "redirect_uri": settings.GOOGLE_REDIRECT_URI,
             "response_type": "code",
             "scope": " ".join(settings.OAUTH_SCOPES),
             "access_type": "offline",      # Essential to obtain a refresh token
-            "prompt": "consent",           # Forces consent screen so refresh token is returned
+            "prompt": prompt_val,          # Forces consent screen so refresh token and permissions are returned
             "state": state,                # CSRF protection token
-            "include_granted_scopes": "true",
+            "include_granted_scopes": "false" if reconnect else "true",
         }
 
         query_string = urllib.parse.urlencode(params)
         auth_url = f"{settings.GOOGLE_AUTH_URI}?{query_string}"
-        logger.info("Generated Google OAuth authorization URL (redirect_uri=%s)", settings.GOOGLE_REDIRECT_URI)
+        logger.info("Generated Google OAuth authorization URL (reconnect=%s, prompt=%s, redirect_uri=%s)", reconnect, prompt_val, settings.GOOGLE_REDIRECT_URI)
         return auth_url
+
+    @classmethod
+    async def verify_token_scopes(cls, access_token: str) -> List[str]:
+        """
+        Queries Google's tokeninfo endpoint to verify actual granted OAuth scopes.
+        Returns a list of granted scopes. Never logs the access token.
+        """
+        if not access_token:
+            return []
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    "https://oauth2.googleapis.com/tokeninfo",
+                    params={"access_token": access_token},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    scope_str = data.get("scope", "")
+                    if scope_str:
+                        scopes = [s.strip() for s in scope_str.split(" ") if s.strip()]
+                        logger.info("Verified token scopes via Google tokeninfo: %d scopes granted", len(scopes))
+                        return scopes
+                else:
+                    logger.warning("Google tokeninfo verification returned HTTP %d", resp.status_code)
+        except Exception as exc:
+            logger.warning("Failed to verify token scopes via tokeninfo: %s", type(exc).__name__)
+        return []
 
     @classmethod
     async def exchange_code_for_tokens(cls, code: str) -> Dict[str, Any]:
@@ -249,8 +285,14 @@ class OAuthService:
         raw_refresh_token = token_data.get("refresh_token")
         expires_in = token_data.get("expires_in", 3600)
         token_type = token_data.get("token_type", "Bearer")
-        scope_str = token_data.get("scope", "")
-        scopes_list = scope_str.split(" ") if scope_str else settings.OAUTH_SCOPES
+
+        # Verify granted scopes directly from Google tokeninfo endpoint if possible
+        verified_scopes = await cls.verify_token_scopes(raw_access_token)
+        if verified_scopes:
+            scopes_list = verified_scopes
+        else:
+            scope_str = token_data.get("scope", "")
+            scopes_list = [s.strip() for s in scope_str.split(" ") if s.strip()] if scope_str else settings.OAUTH_SCOPES
 
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(expires_in))
         encrypted_access = SecurityManager.encrypt_token(raw_access_token)
@@ -276,7 +318,7 @@ class OAuthService:
                 expires_at=expires_at,
             )
             db.add(oauth_token)
-            logger.info("Stored new encrypted OAuthToken for user_id=%s", user.id)
+            logger.info("Stored new encrypted OAuthToken for user_id=%s with %d scopes", user.id, len(scopes_list))
         else:
             oauth_token.encrypted_access_token = encrypted_access
             # Only overwrite refresh token if Google returned a new one (preserve existing valid refresh token)
@@ -284,20 +326,24 @@ class OAuthService:
                 oauth_token.encrypted_refresh_token = SecurityManager.encrypt_token(raw_refresh_token)
             oauth_token.token_type = token_type
             
-            # Safely merge newly granted scopes with existing scopes to preserve incremental authorization
-            existing_scopes = []
-            if oauth_token.scopes:
-                try:
-                    existing_scopes = json.loads(oauth_token.scopes)
-                    if not isinstance(existing_scopes, list):
+            # If we verified fresh scopes from tokeninfo, set them; else merge safely
+            if verified_scopes:
+                oauth_token.scopes = json.dumps(verified_scopes)
+            else:
+                existing_scopes = []
+                if oauth_token.scopes:
+                    try:
+                        existing_scopes = json.loads(oauth_token.scopes)
+                        if not isinstance(existing_scopes, list):
+                            existing_scopes = []
+                    except Exception:
                         existing_scopes = []
-                except Exception:
-                    existing_scopes = []
-            merged_scopes = list(dict.fromkeys(existing_scopes + scopes_list))
-            oauth_token.scopes = json.dumps(merged_scopes)
+                merged_scopes = list(dict.fromkeys(existing_scopes + scopes_list))
+                oauth_token.scopes = json.dumps(merged_scopes)
+
             oauth_token.expires_at = expires_at
             oauth_token.updated_at = datetime.now(timezone.utc)
-            logger.info("Updated existing encrypted OAuthToken for user_id=%s with %d scopes", user.id, len(merged_scopes))
+            logger.info("Updated existing encrypted OAuthToken for user_id=%s with scopes", user.id)
 
         await db.commit()
         await db.refresh(user)
@@ -399,11 +445,18 @@ class OAuthService:
         if not google_account:
             return {
                 "connected": False,
+                "gmail_connected": False,
+                "calendar_connected": False,
                 "email": None,
                 "picture_url": None,
                 "scopes": [],
+                "missing_scopes": [
+                    "https://www.googleapis.com/auth/gmail.readonly",
+                    "https://www.googleapis.com/auth/calendar.readonly",
+                ],
                 "is_expired": False,
                 "requires_reauth": False,
+                "requires_consent": True,
             }
 
         token_result = await db.execute(
@@ -421,6 +474,8 @@ class OAuthService:
         if oauth_token:
             try:
                 scopes = json.loads(oauth_token.scopes)
+                if not isinstance(scopes, list):
+                    scopes = []
             except Exception:
                 scopes = []
             if oauth_token.expires_at:
@@ -429,14 +484,51 @@ class OAuthService:
             if not oauth_token.encrypted_refresh_token:
                 requires_reauth = True
 
+        gmail_connected = any(
+            s in scopes for s in [
+                "https://www.googleapis.com/auth/gmail.readonly",
+                "https://www.googleapis.com/auth/gmail.compose",
+                "https://www.googleapis.com/auth/gmail.modify",
+                "https://mail.google.com/",
+            ]
+        )
+        gmail_compose_connected = any(
+            s in scopes for s in [
+                "https://www.googleapis.com/auth/gmail.compose",
+                "https://www.googleapis.com/auth/gmail.modify",
+                "https://mail.google.com/",
+            ]
+        )
+        calendar_connected = any(
+            s in scopes for s in [
+                "https://www.googleapis.com/auth/calendar.readonly",
+                "https://www.googleapis.com/auth/calendar",
+            ]
+        )
+
+        missing_scopes = []
+        if not gmail_connected:
+            missing_scopes.append("https://www.googleapis.com/auth/gmail.readonly")
+        if not gmail_compose_connected:
+            missing_scopes.append("https://www.googleapis.com/auth/gmail.compose")
+        if not calendar_connected:
+            missing_scopes.append("https://www.googleapis.com/auth/calendar.readonly")
+
+        requires_consent = requires_reauth or len(missing_scopes) > 0
+
         return {
             "connected": True,
+            "gmail_connected": gmail_connected,
+            "gmail_compose_connected": gmail_compose_connected,
+            "calendar_connected": calendar_connected,
             "email": google_account.email,
             "google_user_id": google_account.google_user_id,
             "picture_url": google_account.picture_url,
             "scopes": scopes,
+            "missing_scopes": missing_scopes,
             "is_expired": is_expired,
             "requires_reauth": requires_reauth,
+            "requires_consent": requires_consent,
             "connected_at": google_account.created_at.isoformat() if google_account.created_at else None,
         }
 
@@ -521,6 +613,14 @@ class OAuthService:
         if required_scope == "https://www.googleapis.com/auth/gmail.readonly":
             return any(s in granted for s in [
                 "https://www.googleapis.com/auth/gmail.readonly",
+                "https://www.googleapis.com/auth/gmail.compose",
+                "https://www.googleapis.com/auth/gmail.modify",
+                "https://mail.google.com/",
+            ])
+        if required_scope == "https://www.googleapis.com/auth/gmail.compose":
+            return any(s in granted for s in [
+                "https://www.googleapis.com/auth/gmail.compose",
+                "https://www.googleapis.com/auth/gmail.modify",
                 "https://mail.google.com/",
             ])
         return False

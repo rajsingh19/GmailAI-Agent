@@ -6,7 +6,6 @@ and server-side session token signing.
 import base64
 import hashlib
 import hmac
-import os
 import secrets
 import time
 from typing import Optional, Tuple
@@ -76,6 +75,34 @@ class SecurityManager:
             raise TokenEncryptionError("Invalid or tampered encrypted token payload") from e
         except Exception as e:
             raise TokenEncryptionError(f"Failed to decrypt token: {e}") from e
+
+    @staticmethod
+    def encrypt_bytes(plain_bytes: bytes) -> bytes:
+        """
+        Encrypts raw binary data (e.g. resume files at rest) using authenticated Fernet AES-128-CBC + HMAC-SHA256.
+        Returns encrypted bytes.
+        """
+        if not plain_bytes:
+            return b""
+        try:
+            return _FERNET_INSTANCE.encrypt(plain_bytes)
+        except Exception as e:
+            raise TokenEncryptionError(f"Failed to encrypt file bytes: {e}") from e
+
+    @staticmethod
+    def decrypt_bytes(encrypted_bytes: bytes) -> bytes:
+        """
+        Decrypts encrypted binary data.
+        Raises TokenEncryptionError if ciphertext is invalid, tampered, or corrupted.
+        """
+        if not encrypted_bytes:
+            return b""
+        try:
+            return _FERNET_INSTANCE.decrypt(encrypted_bytes)
+        except InvalidToken as e:
+            raise TokenEncryptionError("Invalid or tampered encrypted file payload") from e
+        except Exception as e:
+            raise TokenEncryptionError(f"Failed to decrypt file bytes: {e}") from e
 
     # -------------------------------------------------------------------------
     # OAuth CSRF State Protection
@@ -207,3 +234,79 @@ class SecurityManager:
             return payload.get("sub")
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
             return None
+
+
+# -----------------------------------------------------------------------------
+# SQLAlchemy Transparent Column Encryption at Rest
+# -----------------------------------------------------------------------------
+import json
+from typing import Any
+from sqlalchemy.types import TypeDecorator, Text
+
+
+class EncryptedText(TypeDecorator):
+    """
+    SQLAlchemy TypeDecorator for authenticated Fernet encryption at rest for text fields.
+    Automatically encrypts on save and decrypts on load using server-side SecurityManager.
+    Transparently handles plaintext legacy values during migrations.
+    """
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value: Optional[str], dialect) -> Optional[str]:
+        if value is None:
+            return None
+        if not value:
+            return ""
+        try:
+            return SecurityManager.encrypt_token(value)
+        except Exception as e:
+            raise TokenEncryptionError(f"Failed to encrypt text field: {e}") from e
+
+    def process_result_value(self, value: Optional[str], dialect) -> Optional[str]:
+        if value is None:
+            return None
+        if not value:
+            return ""
+        try:
+            return SecurityManager.decrypt_token(value)
+        except Exception:
+            # Fallback for unencrypted legacy rows or test fixtures
+            return value
+
+
+class EncryptedJSON(TypeDecorator):
+    """
+    SQLAlchemy TypeDecorator for authenticated Fernet encryption at rest for JSON dict/list fields.
+    Serializes JSON to string, encrypts on save, and decrypts/deserializes on load.
+    """
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value: Any, dialect) -> Optional[str]:
+        if value is None:
+            return None
+        try:
+            json_str = json.dumps(value)
+            return SecurityManager.encrypt_token(json_str)
+        except Exception as e:
+            raise TokenEncryptionError(f"Failed to encrypt JSON field: {e}") from e
+
+    def process_result_value(self, value: Optional[str], dialect) -> Any:
+        if value is None:
+            return {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, list):
+            return value
+        if not value:
+            return {}
+        try:
+            decrypted = SecurityManager.decrypt_token(value)
+            return json.loads(decrypted)
+        except Exception:
+            try:
+                return json.loads(value)
+            except Exception:
+                return {}
+

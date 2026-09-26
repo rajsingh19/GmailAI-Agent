@@ -20,6 +20,10 @@ _PATTERNS = [
     (re.compile(r'("token_encryption_key"\s*:\s*")[^"]+(")', re.IGNORECASE), r"\1[REDACTED]\2"),
     (re.compile(r"(api_key=)[^&\s]+", re.IGNORECASE), r"\1[REDACTED]"),
     (re.compile(r'("api_key"\s*:\s*")[^"]+(")', re.IGNORECASE), r"\1[REDACTED]\2"),
+    (re.compile(r"(auth_token=)[^&\s]+", re.IGNORECASE), r"\1[REDACTED]"),
+    (re.compile(r'("auth_token"\s*:\s*")[^"]+(")', re.IGNORECASE), r"\1[REDACTED]\2"),
+    (re.compile(r"(api_secret=)[^&\s]+", re.IGNORECASE), r"\1[REDACTED]"),
+    (re.compile(r'("api_secret"\s*:\s*")[^"]+(")', re.IGNORECASE), r"\1[REDACTED]\2"),
 ]
 
 

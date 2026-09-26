@@ -5,6 +5,9 @@ from app.schemas.gmail import (
     GmailMessageSummary,
     GmailMessageDetail,
     GmailMessageListResponse,
+    GmailReplyDraftRequest,
+    GmailReplyDraftSaveRequest,
+    GmailReplyDraftResponse,
 )
 from app.schemas.calendar import (
     CalendarSummary,
@@ -66,6 +69,14 @@ from app.schemas.memory import (
     MemoryStatsResponse,
 )
 
+from app.schemas.resume import (
+    ResumeStructuredData,
+    ResumeCreateTextRequest,
+    ResumeUpdateRequest,
+    ResumeResponse,
+    ResumeSummaryResponse,
+)
+
 __all__ = [
     "HealthResponse",
     "GmailProfileResponse",
@@ -73,6 +84,9 @@ __all__ = [
     "GmailMessageSummary",
     "GmailMessageDetail",
     "GmailMessageListResponse",
+    "GmailReplyDraftRequest",
+    "GmailReplyDraftSaveRequest",
+    "GmailReplyDraftResponse",
     "CalendarSummary",
     "CalendarListResponse",
     "CalendarDetail",
@@ -117,6 +131,11 @@ __all__ = [
     "MemoryListResponse",
     "MemorySearchResponse",
     "MemoryStatsResponse",
+    "ResumeStructuredData",
+    "ResumeCreateTextRequest",
+    "ResumeUpdateRequest",
+    "ResumeResponse",
+    "ResumeSummaryResponse",
 ]
 
 

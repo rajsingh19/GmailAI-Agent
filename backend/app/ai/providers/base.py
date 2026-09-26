@@ -15,7 +15,30 @@ class LLMAuthenticationError(LLMProviderError):
 
 class LLMRateLimitError(LLMProviderError):
     """Raised when the LLM provider returns a 429 / quota exceeded error."""
-    pass
+
+    def __init__(
+        self,
+        message: str = "Gemini API rate limit or quota exceeded.",
+        retry_after: Optional[float] = None,
+        is_daily_quota: bool = False,
+    ):
+        super().__init__(message)
+        self.retry_after = retry_after
+        self.is_daily_quota = is_daily_quota
+
+
+class LLMDailyQuotaExhaustedError(LLMRateLimitError):
+    """Raised when the LLM provider daily free-tier or project quota is exhausted."""
+
+    def __init__(
+        self,
+        message: str = "Gemini daily quota exhausted. Smart Reply will work when your quota resets or you configure a billing-enabled plan.",
+        quota_metric: Optional[str] = None,
+        quota_limit: Optional[str] = None,
+    ):
+        super().__init__(message=message, retry_after=None, is_daily_quota=True)
+        self.quota_metric = quota_metric
+        self.quota_limit = quota_limit
 
 
 class LLMTimeoutError(LLMProviderError):
@@ -26,6 +49,18 @@ class LLMTimeoutError(LLMProviderError):
 class LLMInvalidResponseError(LLMProviderError):
     """Raised when the LLM provider returns an unparseable or malformed response."""
     pass
+
+
+class LLMServiceUnavailableError(LLMProviderError):
+    """Raised when the LLM provider returns a transient 503/5xx error and retries are exhausted."""
+
+    def __init__(
+        self,
+        message: str = "The AI service is temporarily experiencing high demand. Please try again in a few moments.",
+        retry_after: Optional[float] = None,
+    ):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 @dataclass
@@ -78,6 +113,10 @@ class LLMProvider(ABC):
         tools: Optional[List[LLMToolDeclaration]] = None,
         system_instruction: Optional[str] = None,
         timeout: float = 30.0,
+        generation_config: Optional[Dict[str, Any]] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        **kwargs: Any,
     ) -> LLMResponse:
         """
         Sends the dialogue history and available tools to the LLM and returns

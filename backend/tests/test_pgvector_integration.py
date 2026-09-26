@@ -52,9 +52,9 @@ class MockFixedEmbeddingProvider(EmbeddingProvider):
 
 
 def test_vector_dimension_constants():
-    """Verify system config specifies 768 dimensions for text-embedding-004."""
+    """Verify system config specifies 768 dimensions for gemini-embedding-001."""
     assert settings.EMBEDDING_DIMENSIONS == 768
-    assert settings.EMBEDDING_MODEL == "text-embedding-004"
+    assert settings.EMBEDDING_MODEL == "gemini-embedding-001"
 
 
 def test_chunk_embedding_vector_dimensions_exact():

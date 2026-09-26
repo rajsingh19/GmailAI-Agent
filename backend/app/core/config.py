@@ -1,6 +1,5 @@
 import base64
 import json
-import os
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional, Union
@@ -80,6 +79,10 @@ class Settings(BaseSettings):
     METRICS_ENABLED: bool = True
     METRICS_SECRET_TOKEN: Optional[str] = None
 
+    # Resume File Storage Configuration (Milestone 1)
+    RESUME_STORAGE_DIR: str = "data/resumes"
+    MAX_RESUME_UPLOAD_BYTES: int = 5 * 1024 * 1024  # 5 MB max per file
+
     # Database Configuration (SQLite default with PostgreSQL support)
     DATABASE_URL: str = "sqlite+aiosqlite:///./ai_assistant.db"
     DB_POOL_SIZE: int = 10
@@ -99,23 +102,26 @@ class Settings(BaseSettings):
     GOOGLE_USERINFO_URI: str = "https://www.googleapis.com/oauth2/v2/userinfo"
     GOOGLE_REVOKE_URI: str = "https://oauth2.googleapis.com/revoke"
 
-    # OAuth Scopes: strictly read-only Gmail + Calendar + standard identity profile
+    # OAuth Scopes: read-only Gmail + compose Gmail drafts + Calendar + standard identity profile
     OAUTH_SCOPES: List[str] = [
         "openid",
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
         "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.compose",
         "https://www.googleapis.com/auth/calendar.readonly",
     ]
 
     # AI Provider configuration (Milestone 6)
     GEMINI_API_KEY: str = ""
-    AI_MODEL_NAME: str = "gemini-3.6-flash"
+    AI_MODEL_NAME: str = "gemini-3.5-flash-lite"
     GEMINI_MODEL: Optional[str] = None  # Optional override
+    SMART_REPLY_TIMEOUT_SECONDS: int = 25
+    SMART_REPLY_MAX_OUTPUT_TOKENS: int = 600
 
     # Embedding & RAG Configuration (Milestone 7)
     EMBEDDING_PROVIDER: str = "gemini"
-    EMBEDDING_MODEL: str = "text-embedding-004"
+    EMBEDDING_MODEL: str = "gemini-embedding-001"
     EMBEDDING_DIMENSIONS: int = 768
     RAG_CHUNK_SIZE: int = 500
     RAG_CHUNK_OVERLAP: int = 75
@@ -132,9 +138,9 @@ class Settings(BaseSettings):
     MAX_DOCUMENT_INGEST_CHARS: int = 20000
 
     # Agent Execution, Context & Timeout Limits
-    MAX_TOOL_CALLS_PER_TURN: int = 5
+    MAX_TOOL_CALLS_PER_TURN: int = 8
     TOOL_TIMEOUT_SECONDS: int = 10
-    AGENT_TIMEOUT_SECONDS: int = 30
+    AGENT_TIMEOUT_SECONDS: int = 60
     MAX_AGENT_MESSAGE_LENGTH: int = 4000
     MAX_HISTORY_MESSAGES: int = 10
     MAX_HISTORY_CHARS: int = 8000
@@ -185,29 +191,6 @@ class Settings(BaseSettings):
     VAPID_SUBJECT: str = "mailto:admin@example.com"
     RATE_LIMIT_PUSH_LIMIT: int = 20
     RATE_LIMIT_PUSH_WINDOW: int = 60
-
-    # WhatsApp Notifications (Twilio)
-    WHATSAPP_ENABLED: bool = False
-    TWILIO_ACCOUNT_SID: Optional[str] = None
-    TWILIO_AUTH_TOKEN: Optional[str] = None
-    TWILIO_WHATSAPP_FROM: Optional[str] = None  # e.g. "whatsapp:+14155238886"
-    TWILIO_API_KEY: Optional[str] = None
-    TWILIO_API_SECRET: Optional[str] = None
-    TWILIO_SANDBOX_MODE: bool = True
-    TWILIO_STATUS_CALLBACK_URL: Optional[str] = None
-    # Approved production WhatsApp message templates
-    TWILIO_WHATSAPP_REMINDER_TEMPLATE: Optional[str] = None
-    TWILIO_WHATSAPP_TASK_TEMPLATE: Optional[str] = None
-    TWILIO_WHATSAPP_INTERVIEW_TEMPLATE: Optional[str] = None
-    TWILIO_WHATSAPP_PROACTIVE_TEMPLATE: Optional[str] = None
-    TWILIO_WHATSAPP_TEST_TEMPLATE: Optional[str] = None
-    # WhatsApp Rate Limiting
-    RATE_LIMIT_WHATSAPP_LIMIT: int = 10
-    RATE_LIMIT_WHATSAPP_WINDOW: int = 60
-    RATE_LIMIT_WHATSAPP_TEST_LIMIT: int = 3
-    RATE_LIMIT_WHATSAPP_TEST_WINDOW: int = 60
-    RATE_LIMIT_WHATSAPP_GLOBAL_LIMIT: int = 100
-    RATE_LIMIT_WHATSAPP_GLOBAL_WINDOW: int = 3600
 
     @property
     def effective_model_name(self) -> str:

@@ -13,6 +13,8 @@ from app.api.v1.endpoints import (
     voice,
     memory,
     personalization,
+    resumes,
+    jobs,
 )
 
 api_v1_router = APIRouter()
@@ -30,6 +32,8 @@ api_v1_router.include_router(proactive.router, prefix="/proactive", tags=["Proac
 api_v1_router.include_router(voice.router, prefix="/voice", tags=["Voice"])
 api_v1_router.include_router(memory.router, prefix="/memories", tags=["Memory"])
 api_v1_router.include_router(personalization.router, prefix="/personalization", tags=["Personalization"])
+api_v1_router.include_router(resumes.router, prefix="/resumes", tags=["Resumes"])
+api_v1_router.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
 
 
 

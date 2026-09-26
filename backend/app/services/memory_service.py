@@ -4,7 +4,6 @@ Enforces privacy-first defaults, deterministic relevance scoring, secret scannin
 atomic PostgreSQL upserts, and strict multi-user isolation.
 """
 import re
-import math
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple

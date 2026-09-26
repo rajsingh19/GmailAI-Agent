@@ -41,6 +41,10 @@ async def execute_get_gmail_profile(
         return {"source": "gmail", "trusted": False, "status": "error", "message": f"Failed to get Gmail profile: {exc}"}
 
 
+from datetime import datetime, timezone
+from app.services.interview_classifier import classify_interview_email, InterviewStatus
+
+
 async def execute_search_gmail(
     user_id: str,
     db: AsyncSession,
@@ -52,8 +56,25 @@ async def execute_search_gmail(
     service = GmailService(user_id=user_id, db=db)
     try:
         resp = await service.list_messages(max_results=lim, query=query)
-        messages = [
-            {
+        now_utc = datetime.now(timezone.utc)
+        messages = []
+        for m in resp.messages:
+            msg_dt = None
+            if m.timestamp:
+                try:
+                    msg_dt = datetime.fromisoformat(m.timestamp.replace("Z", "+00:00"))
+                except Exception:
+                    msg_dt = now_utc
+
+            interview_info = classify_interview_email(
+                subject=m.subject or "",
+                body_or_snippet=m.snippet or "",
+                email_received_dt=msg_dt,
+                reference_cutoff=now_utc,
+                now_ref=now_utc,
+            )
+
+            msg_item: Dict[str, Any] = {
                 "id": m.id,
                 "subject": m.subject,
                 "sender": m.sender,
@@ -62,8 +83,13 @@ async def execute_search_gmail(
                 "is_unread": m.is_unread,
                 "has_attachments": m.has_attachments,
             }
-            for m in resp.messages
-        ]
+            if interview_info["status"] != InterviewStatus.NON_INTERVIEW:
+                msg_item["interview_temporal_status"] = interview_info["status"].value
+                msg_item["interview_scheduled_time"] = interview_info["scheduled_time"]
+                msg_item["is_pending_or_upcoming"] = interview_info["is_pending_or_upcoming"]
+
+            messages.append(msg_item)
+
         return {
             "source": "gmail",
             "trusted": False,
@@ -110,20 +136,42 @@ async def execute_get_gmail_message(
             for a in msg.attachments
         ]
 
+        now_utc = datetime.now(timezone.utc)
+        msg_dt = None
+        if msg.timestamp:
+            try:
+                msg_dt = datetime.fromisoformat(msg.timestamp.replace("Z", "+00:00"))
+            except Exception:
+                msg_dt = now_utc
+
+        interview_info = classify_interview_email(
+            subject=msg.subject or "",
+            body_or_snippet=f"{msg.snippet or ''} {body_text}",
+            email_received_dt=msg_dt,
+            reference_cutoff=now_utc,
+            now_ref=now_utc,
+        )
+
+        message_data: Dict[str, Any] = {
+            "id": msg.id,
+            "subject": msg.subject,
+            "sender": msg.sender,
+            "recipients": msg.recipients,
+            "timestamp": msg.timestamp,
+            "body": body_text,
+            "attachments": attachments,
+            "is_unread": msg.is_unread,
+        }
+        if interview_info["status"] != InterviewStatus.NON_INTERVIEW:
+            message_data["interview_temporal_status"] = interview_info["status"].value
+            message_data["interview_scheduled_time"] = interview_info["scheduled_time"]
+            message_data["is_pending_or_upcoming"] = interview_info["is_pending_or_upcoming"]
+
         return {
             "source": "gmail",
             "trusted": False,
             "status": "success",
-            "message": {
-                "id": msg.id,
-                "subject": msg.subject,
-                "sender": msg.sender,
-                "recipients": msg.recipients,
-                "timestamp": msg.timestamp,
-                "body": body_text,
-                "attachments": attachments,
-                "is_unread": msg.is_unread,
-            },
+            "message": message_data,
         }
     except GmailNotFoundError:
         return {"source": "gmail", "trusted": False, "status": "error", "message": f"Email message '{message_id}' not found."}

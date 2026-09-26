@@ -3,17 +3,10 @@ import {
   Bot,
   Send,
   Sparkles,
-  AlertTriangle,
   AlertCircle,
-  CheckCircle2,
-  Terminal,
-  Wrench,
   Loader2,
   Plus,
   Paperclip,
-  ThumbsUp,
-  ThumbsDown,
-  Copy,
 } from 'lucide-react';
 import {
   sendAgentMessage,
@@ -24,6 +17,7 @@ import {
 } from '../../services/api';
 import { VoiceControls } from '../VoiceControls';
 import { sendVoiceChat, VoiceChatResponse } from '../../services/voiceApi';
+import { ChatMessageBubble } from '../chat/ChatMessageBubble';
 
 interface ChatPageProps {
   isAuthenticated: boolean;
@@ -326,120 +320,18 @@ export const ChatPage: React.FC<ChatPageProps> = ({ isAuthenticated }) => {
         {/* Right Column: Conversation Area */}
         <div className="lg:col-span-3 saas-card flex flex-col h-full overflow-hidden">
           {/* Messages Scroll Area */}
-          <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-3.5 bg-[#F8FAFC]">
-            {messages.map((msg) => {
-              const isUser = msg.role === 'user';
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
-                >
-                  <div
-                    className={`max-w-[88%] sm:max-w-[80%] rounded-xl p-3.5 text-xs sm:text-sm leading-relaxed ${
-                      isUser
-                        ? 'bg-[#EEF2FF] text-[#111827] border border-[#E0E7FF] rounded-tr-xs shadow-2xs'
-                        : 'bg-white text-[#111827] border border-[#E5E7EB] rounded-tl-xs shadow-2xs'
-                    }`}
-                  >
-                    {/* Message Header */}
-                    <div className="flex items-center gap-2 mb-1 text-[11px] text-[#64748B]">
-                      {isUser ? (
-                        <span className="font-semibold text-[#4F46E5]">You</span>
-                      ) : (
-                        <span className="font-semibold text-[#111827] flex items-center gap-1">
-                          <Bot className="w-3.5 h-3.5 text-[#4F46E5]" /> AI Assistant
-                        </span>
-                      )}
-                      <span>&bull;</span>
-                      <span className="text-[#94A3B8]">{msg.timestamp}</span>
-                    </div>
-
-                    {/* Content */}
-                    <div className="whitespace-pre-wrap font-sans text-xs sm:text-sm text-[#111827]">{msg.content}</div>
-
-                    {/* Tool Badges if executed */}
-                    {msg.toolsCalled && msg.toolsCalled.length > 0 && (
-                      <div className="mt-2.5 pt-2 border-t border-[#E5E7EB] space-y-1">
-                        <div className="text-[10px] uppercase font-semibold text-[#64748B] flex items-center gap-1">
-                          <Terminal className="w-3 h-3 text-[#4F46E5]" />
-                          <span>Tools Executed ({msg.toolsCalled.length})</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {msg.toolsCalled.map((tool, idx) => (
-                            <div
-                              key={idx}
-                              className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded border ${
-                                tool.status === 'completed'
-                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                  : 'bg-amber-50 border-amber-200 text-amber-700'
-                              }`}
-                            >
-                              <Wrench className="w-3 h-3" />
-                              <span className="font-medium text-[11px]">{tool.name}</span>
-                              {tool.status === 'completed' ? (
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              ) : (
-                                <AlertTriangle className="w-3 h-3 text-amber-600" />
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Confirmation Challenge Box */}
-                    {msg.requiresConfirmation && msg.confirmation && (
-                      <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 space-y-2">
-                        <div className="flex items-start gap-2">
-                          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                          <div className="text-xs">
-                            <div className="font-bold text-amber-800">Confirmation Required</div>
-                            <p className="mt-0.5 text-amber-900">{msg.confirmation.message}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 pt-1">
-                          <button
-                            onClick={() => handleConfirmAction(msg.confirmation!)}
-                            disabled={loading}
-                            className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors cursor-pointer"
-                          >
-                            Confirm & Execute
-                          </button>
-                          <button
-                            onClick={handleCancelConfirmation}
-                            disabled={loading}
-                            className="px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-[#111827] text-xs hover:bg-slate-50 transition-colors cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Actions footer for assistant bubble */}
-                    {!isUser && (
-                      <div className="mt-2.5 pt-2 border-t border-[#E5E7EB] flex items-center justify-between text-[#94A3B8]">
-                        <div className="flex items-center gap-2">
-                          <button className="p-0.5 hover:text-[#64748B] rounded transition-colors" title="Helpful">
-                            <ThumbsUp className="w-3 h-3" />
-                          </button>
-                          <button className="p-0.5 hover:text-[#64748B] rounded transition-colors" title="Not helpful">
-                            <ThumbsDown className="w-3 h-3" />
-                          </button>
-                        </div>
-                        <button
-                          onClick={() => handleCopy(msg.content, msg.id)}
-                          className="flex items-center gap-1 text-[11px] hover:text-[#4F46E5] transition-colors"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>{copiedId === msg.id ? 'Copied' : 'Copy'}</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-3 bg-[#F8FAFC]">
+            {messages.map((msg) => (
+              <ChatMessageBubble
+                key={msg.id}
+                message={msg}
+                loading={loading}
+                copiedId={copiedId}
+                onCopy={handleCopy}
+                onConfirmAction={handleConfirmAction}
+                onCancelConfirmation={handleCancelConfirmation}
+              />
+            ))}
 
             {loading && (
               <div className="flex items-start gap-2">

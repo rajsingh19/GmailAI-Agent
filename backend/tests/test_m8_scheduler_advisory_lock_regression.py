@@ -177,16 +177,20 @@ async def test_m8_notification_idempotency_key_constraint(test_db):
 
 
 @pytest.mark.asyncio
-async def test_m8_proactive_cycle_runs_safely_under_m9_stack():
+async def test_m8_proactive_cycle_runs_safely_under_m9_stack(test_db):
     """
     Verifies that run_proactive_cycle runs without error under the current M9 stack
     and returns the expected dictionary contract.
     """
     service = ProactiveMonitorService()
-    stats = await service.run_proactive_cycle()
-    assert "started_at" in stats
-    assert "users_processed" in stats
-    assert "total_notifications_created" in stats
-    assert "global_llm_calls_used" in stats
-    assert "errors" in stats
-    assert stats["errors"] == 0
+    with patch(
+        "app.services.proactive.monitor_service.AsyncSessionLocal",
+        return_value=FakeSessionContext(test_db),
+    ):
+        stats = await service.run_proactive_cycle()
+        assert "started_at" in stats
+        assert "users_processed" in stats
+        assert "total_notifications_created" in stats
+        assert "global_llm_calls_used" in stats
+        assert "errors" in stats
+        assert stats["errors"] == 0

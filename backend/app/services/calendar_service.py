@@ -254,6 +254,19 @@ class CalendarService:
         clean_cal_id = calendar_id.strip()
         bounded_max = max(1, min(max_results, 100))
 
+        # Support both datetime and ISO string inputs
+        if isinstance(time_min, str):
+            try:
+                time_min = datetime.fromisoformat(time_min.replace("Z", "+00:00"))
+            except Exception:
+                time_min = None
+
+        if isinstance(time_max, str):
+            try:
+                time_max = datetime.fromisoformat(time_max.replace("Z", "+00:00"))
+            except Exception:
+                time_max = None
+
         # Validate date range order
         if time_min and time_max:
             t_min = time_min.replace(tzinfo=timezone.utc) if time_min.tzinfo is None else time_min
@@ -298,10 +311,12 @@ class CalendarService:
 
         raw_items = data.get("items", []) or []
         events: List[CalendarEventSummary] = []
+        seen_ids = set()
 
         for item in raw_items:
             summary = self._normalize_event_summary(item, clean_cal_id)
-            if summary:
+            if summary and summary.id not in seen_ids:
+                seen_ids.add(summary.id)
                 events.append(summary)
 
         logger.info(

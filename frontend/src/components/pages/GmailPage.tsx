@@ -9,6 +9,9 @@ import {
   X,
   FileText,
   AlertCircle,
+  Sparkles,
+  Edit3,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   AuthStatusResponse,
@@ -18,10 +21,24 @@ import {
   fetchGmailMessageDetail,
   getGoogleOAuthUrl,
 } from '../../services/api';
+import { SmartReplyComposer, SmartReplyState } from '../gmail/SmartReplyComposer';
+import { EmailBodyViewer } from '../gmail/EmailBodyViewer';
 
 interface GmailPageProps {
   authStatus: AuthStatusResponse | null;
 }
+
+const createDefaultDraftState = (): SmartReplyState => ({
+  replyBody: '',
+  tone: 'professional',
+  customInstructions: '',
+  loading: false,
+  error: null,
+  isDailyQuotaExhausted: false,
+  retryCountdown: null,
+  placeholders: [],
+  generated: false,
+});
 
 export const GmailPage: React.FC<GmailPageProps> = ({ authStatus }) => {
   const [messages, setMessages] = useState<GmailMessageSummary[]>([]);
@@ -39,15 +56,45 @@ export const GmailPage: React.FC<GmailPageProps> = ({ authStatus }) => {
   const [detailLoading, setDetailLoading] = useState<boolean>(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
+  // Isolated Smart Reply Drafts State (keyed by messageId)
+  const [draftsState, setDraftsState] = useState<Record<string, SmartReplyState>>({});
+
   // Starred local state toggle for visual feedback
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
 
+  const getDraftState = (id: string): SmartReplyState => {
+    return draftsState[id] || createDefaultDraftState();
+  };
+
+  const updateDraftState = (
+    id: string,
+    updater: (prev: SmartReplyState) => SmartReplyState
+  ) => {
+    setDraftsState((prev) => {
+      const current = prev[id] || createDefaultDraftState();
+      return {
+        ...prev,
+        [id]: updater(current),
+      };
+    });
+  };
+
+  const discardDraft = (id: string) => {
+    setDraftsState((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
   const isConnected = authStatus?.google_account?.connected ?? false;
+  const isGmailConnected = isConnected && authStatus?.google_account?.gmail_connected !== false;
+  const requiresConsent = isConnected && (authStatus?.google_account?.requires_consent || !isGmailConnected);
   const googleEmail = authStatus?.google_account?.email;
 
   const loadEmails = useCallback(
     async (queryOverride?: string) => {
-      if (!isConnected) return;
+      if (!isConnected || !isGmailConnected) return;
       setLoading(true);
       setError(null);
       try {
@@ -63,7 +110,7 @@ export const GmailPage: React.FC<GmailPageProps> = ({ authStatus }) => {
         setLoading(false);
       }
     },
-    [isConnected, searchQuery]
+    [isConnected, isGmailConnected, searchQuery]
   );
 
   useEffect(() => {
@@ -140,10 +187,17 @@ export const GmailPage: React.FC<GmailPageProps> = ({ authStatus }) => {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Gmail Inbox</h1>
             {isConnected ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                Connected
-              </span>
+              requiresConsent ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  Permissions Missing
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Connected
+                </span>
+              )
             ) : (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
                 Disconnected
@@ -160,13 +214,13 @@ export const GmailPage: React.FC<GmailPageProps> = ({ authStatus }) => {
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => loadEmails()}
-            disabled={loading || !isConnected}
+            disabled={loading || !isGmailConnected}
             title="Refresh Inbox"
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-gray-200 bg-white transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
           </button>
-          {!isConnected && (
+          {!isConnected ? (
             <a
               href={getGoogleOAuthUrl()}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium shadow-sm transition-colors"
@@ -174,7 +228,15 @@ export const GmailPage: React.FC<GmailPageProps> = ({ authStatus }) => {
               <span>Connect Google</span>
               <ArrowUpRight className="w-4 h-4" />
             </a>
-          )}
+          ) : requiresConsent ? (
+            <a
+              href={getGoogleOAuthUrl(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium shadow-sm transition-colors"
+            >
+              <span>Grant Permissions</span>
+              <ArrowUpRight className="w-4 h-4" />
+            </a>
+          ) : null}
         </div>
       </div>
 
@@ -293,6 +355,21 @@ export const GmailPage: React.FC<GmailPageProps> = ({ authStatus }) => {
               <ArrowUpRight className="w-3.5 h-3.5" />
             </a>
           </div>
+        ) : requiresConsent ? (
+          <div className="p-12 text-center text-gray-400 bg-amber-50/40">
+            <AlertCircle className="w-10 h-10 mx-auto mb-3 text-amber-500" />
+            <p className="text-sm font-medium text-gray-800">Gmail Permissions Required</p>
+            <p className="text-xs text-gray-600 mt-1 max-w-sm mx-auto mb-4">
+              Your Google account is connected, but Gmail read-only permissions have not been granted yet.
+            </p>
+            <a
+              href={getGoogleOAuthUrl(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-xs"
+            >
+              <span>Grant Gmail Permissions</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
         ) : loading && messages.length === 0 ? (
           <div className="p-8 space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -366,6 +443,28 @@ export const GmailPage: React.FC<GmailPageProps> = ({ authStatus }) => {
                     <Paperclip className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                   )}
 
+                  {/* On-Demand Generate Reply Button on Email Row */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {draftsState[msg.id]?.generated ? (
+                      <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <Edit3 className="w-2.5 h-2.5" />
+                        <span>Drafted</span>
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDetail(msg.id);
+                      }}
+                      title="Open Smart Reply Draft"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-indigo-700 hover:text-white bg-indigo-50 hover:bg-indigo-600 border border-indigo-200 hover:border-indigo-600 transition-colors shadow-2xs"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span className="hidden sm:inline">Generate Reply</span>
+                    </button>
+                  </div>
+
                   {/* Date/Time */}
                   <div className="text-[11px] text-[#64748B] flex-shrink-0 text-right w-14 sm:w-16">
                     {formatMessageDate(msg.timestamp)}
@@ -377,62 +476,90 @@ export const GmailPage: React.FC<GmailPageProps> = ({ authStatus }) => {
         )}
       </div>
 
-      {/* Email Detail Modal */}
+      {/* Email Detail Modal with Integrated Smart Reply Composer */}
       {selectedMessageId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-xl relative text-gray-900">
-            {/* Modal Header */}
-            <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-base font-semibold text-gray-900 leading-snug">
-                  {messageDetail?.subject || 'Loading Subject...'}
-                </h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/50 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-2xl sm:max-w-3xl max-h-[85vh] flex flex-col shadow-2xl relative text-gray-900 overflow-hidden my-auto">
+            {/* Modal Header - Fixed & Compact */}
+            <div className="p-4 sm:p-5 border-b border-gray-100 flex items-start justify-between gap-3 flex-shrink-0 bg-white sticky top-0 z-10">
+              <div className="min-w-0 flex-1 space-y-1.5">
+                {/* Badges & Date */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
                     Gmail
                   </span>
-                  <span className="text-xs text-gray-500">
-                    {messageDetail?.timestamp ? new Date(messageDetail.timestamp).toLocaleString() : ''}
+                  <span className="text-[11px] text-gray-500 font-medium">
+                    {messageDetail?.timestamp
+                      ? new Date(messageDetail.timestamp).toLocaleString(undefined, {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })
+                      : ''}
                   </span>
                 </div>
+
+                {/* Subject Heading */}
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 leading-snug break-words">
+                  {messageDetail?.subject || 'Loading Subject...'}
+                </h3>
+
+                {/* Compact Sender & Recipient Metadata */}
+                {messageDetail && (
+                  <div className="flex items-center gap-2 flex-wrap text-xs text-gray-600 pt-0.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-[10px] flex-shrink-0">
+                        {(messageDetail.sender || 'S').slice(0, 1).toUpperCase()}
+                      </div>
+                      <span className="font-semibold text-gray-900">From:</span>
+                      <span className="text-gray-800 break-all">{messageDetail.sender}</span>
+                    </div>
+                    {messageDetail.recipients && messageDetail.recipients.length > 0 && (
+                      <div className="flex items-center gap-1 text-gray-500 text-[11px] truncate">
+                        <span>•</span>
+                        <span className="font-medium text-gray-700">To:</span>
+                        <span className="truncate">{messageDetail.recipients.join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+
               <button
                 onClick={() => {
                   setSelectedMessageId(null);
                   setMessageDetail(null);
                 }}
-                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                aria-label="Close modal"
+                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+            {/* Modal Body with Vertical-Only Scrolling */}
+            <div className="p-4 sm:p-5 overflow-y-auto overflow-x-hidden flex-1 space-y-4 min-h-0">
               {detailLoading ? (
-                <div className="py-12 text-center text-xs text-gray-400">Loading full message...</div>
+                <div className="py-16 text-center text-xs text-gray-400 flex flex-col items-center justify-center gap-2">
+                  <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
+                  <span>Loading full message...</span>
+                </div>
               ) : detailError ? (
-                <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg">{detailError}</div>
+                <div className="p-3.5 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{detailError}</span>
+                </div>
               ) : messageDetail ? (
                 <>
-                  <div className="p-3.5 bg-gray-50 rounded-xl text-xs space-y-1.5 border border-gray-100">
-                    <div>
-                      <strong className="text-gray-700">From:</strong> {messageDetail.sender}
-                    </div>
-                    {messageDetail.recipients && messageDetail.recipients.length > 0 && (
-                      <div>
-                        <strong className="text-gray-700">To:</strong> {messageDetail.recipients.join(', ')}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="prose prose-sm max-w-none text-gray-800 text-xs sm:text-sm whitespace-pre-wrap font-sans leading-relaxed pt-2">
-                    {messageDetail.body_plain || messageDetail.body_html_text || messageDetail.snippet}
+                  {/* Clean & Formatted Email Body with URL Shortening */}
+                  <div className="text-gray-800 text-xs sm:text-sm">
+                    <EmailBodyViewer
+                      content={messageDetail.body_plain || messageDetail.body_html_text || messageDetail.snippet}
+                    />
                   </div>
 
                   {/* Attachments Section */}
                   {messageDetail.attachments && messageDetail.attachments.length > 0 && (
-                    <div className="pt-4 border-t border-gray-100">
+                    <div className="pt-3 border-t border-gray-100">
                       <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
                         <Paperclip className="w-3.5 h-3.5 text-gray-500" />
                         <span>Attachments ({messageDetail.attachments.length})</span>
@@ -441,14 +568,14 @@ export const GmailPage: React.FC<GmailPageProps> = ({ authStatus }) => {
                         {messageDetail.attachments.map((att, idx) => (
                           <div
                             key={idx}
-                            className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-xs"
+                            className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-xs overflow-hidden"
                           >
-                            <div className="flex items-center gap-2 truncate">
+                            <div className="flex items-center gap-2 truncate min-w-0">
                               <FileText className="w-4 h-4 text-indigo-600 flex-shrink-0" />
                               <span className="font-medium text-gray-800 truncate">
                                 {att.filename}
                               </span>
-                              <span className="text-[10px] text-gray-400">
+                              <span className="text-[10px] text-gray-400 flex-shrink-0">
                                 ({(att.size / 1024).toFixed(1)} KB)
                               </span>
                             </div>
@@ -457,19 +584,43 @@ export const GmailPage: React.FC<GmailPageProps> = ({ authStatus }) => {
                       </div>
                     </div>
                   )}
+
+                  {/* Visual Divider & On-Demand Smart Reply Composer Section */}
+                  <div className="pt-4 border-t border-indigo-100/80">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>AI Smart Reply Assistant</span>
+                      </span>
+                      <span className="text-[10px] text-gray-400">On-demand only</span>
+                    </div>
+                    <SmartReplyComposer
+                      messageId={messageDetail.id}
+                      threadId={messageDetail.thread_id}
+                      subject={messageDetail.subject}
+                      recipient={messageDetail.sender}
+                      state={getDraftState(messageDetail.id)}
+                      onUpdateState={(updater) => updateDraftState(messageDetail.id, updater)}
+                      onDiscard={() => discardDraft(messageDetail.id)}
+                      compact={true}
+                    />
+                  </div>
                 </>
               ) : null}
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/50 rounded-b-2xl">
-              <span className="text-[11px] text-gray-400">Strictly Read-Only Access</span>
+            {/* Modal Footer - Fixed & Accessible */}
+            <div className="p-3 sm:p-3.5 border-t border-gray-100 flex items-center justify-between bg-gray-50/80 rounded-b-2xl flex-shrink-0 sticky bottom-0 z-10">
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-medium">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                <span>Drafts Only • Never Sends Automatically (Mailbox Protected)</span>
+              </div>
               <button
                 onClick={() => {
                   setSelectedMessageId(null);
                   setMessageDetail(null);
                 }}
-                className="px-4 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-medium rounded-lg transition-colors"
+                className="px-4 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-medium rounded-lg transition-colors shadow-2xs cursor-pointer"
               >
                 Close
               </button>

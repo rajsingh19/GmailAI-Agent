@@ -65,3 +65,7 @@ frontend/dist-ssr/
 .DS_Store
 Thumbs.db
 scratch/
+
+# Uploads & Runtime Data
+data/
+backend/data/

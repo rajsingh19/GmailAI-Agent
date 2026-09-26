@@ -114,22 +114,30 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = () => {
 
       if (errMsg.includes('Home Screen')) {
         setError(errMsg);
-      } else if (errMsg.includes('denied') || permission === 'denied') {
-        setError('Notification permission was blocked in browser settings. Please allow notifications to receive alerts.');
+      } else if (
+        errMsg.includes('denied') ||
+        permission === 'denied' ||
+        errMsg.includes('permission was denied')
+      ) {
+        setError('Browser notification permission was denied. Enable notifications in browser settings.');
       } else if (
         errName === 'AbortError' ||
         errMsg.includes('push service') ||
-        errMsg.includes('Registration failed') ||
-        errMsg.includes('service worker') ||
-        errName === 'NotSupportedError'
+        errMsg.includes('Registration failed')
       ) {
         setError(
-          "Push notifications aren't available in this browser environment. Try opening the assistant in a regular Chrome, Edge, Firefox, Android browser, or installed PWA."
+          'Push service is unavailable. Check your internet connection or browser push service settings, then try again.'
         );
+      } else if (
+        errName === 'NotSupportedError' ||
+        errMsg.includes('not supported')
+      ) {
+        setError('Web Push is not supported in this browser environment.');
+      } else if (errMsg) {
+        const sanitized = errMsg.split('\n')[0].replace(/https?:\/\/[^\s]+/g, '').trim();
+        setError(sanitized || 'Push subscription failed. Please try again.');
       } else {
-        setError(
-          "Push notifications aren't available in this browser environment. Try opening the assistant in a regular Chrome, Edge, Firefox, Android browser, or installed PWA."
-        );
+        setError('Push subscription failed. Please try again.');
       }
     } finally {
       setActionLoading(false);
@@ -174,8 +182,12 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = () => {
         'Your Web Push setup is active and ready for reminder alerts!'
       );
       if (result.status === 'ok') {
+        const count = result.delivered_count ?? 0;
+        const targetDesc = isSubscribedLocally
+          ? 'this browser and all registered devices'
+          : 'all active registered devices';
         setSuccessMessage(
-          `Test notification sent! Delivered: ${result.delivered_count}`
+          `Test notification sent! Delivered to ${count} ${targetDesc}.`
         );
       } else {
         setError(result.message || 'Test notification delivery could not be completed.');
@@ -183,7 +195,7 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = () => {
       await loadStatus();
     } catch (err: any) {
       console.warn('[PushManager] Test push note:', err);
-      setError('Unable to send test notification. Check that a device is active.');
+      setError('Unable to send test notification. Check that an active device is registered.');
     } finally {
       setTestPushRunning(false);
     }
@@ -336,12 +348,16 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = () => {
               </button>
             )}
 
-            {isSubscribedLocally && (
+            {(isSubscribedLocally || (pushStatus?.active_subscriptions ?? 0) > 0) && (
               <button
                 onClick={handleSendTestPush}
                 disabled={testPushRunning}
                 className="py-2 px-3.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-medium text-xs flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
-                title="Send test notification to all registered devices"
+                title={
+                  isSubscribedLocally
+                    ? 'Send test notification to this browser and all registered devices'
+                    : 'Send test notification to all active registered devices'
+                }
               >
                 <Send className="w-3.5 h-3.5" />
                 {testPushRunning ? 'Sending...' : 'Test'}

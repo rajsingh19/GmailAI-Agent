@@ -15,12 +15,17 @@ export interface HealthCheckResult {
 
 export interface GoogleAccountStatus {
   connected: boolean;
+  gmail_connected?: boolean;
+  gmail_compose_connected?: boolean;
+  calendar_connected?: boolean;
   email: string | null;
   google_user_id?: string;
   picture_url: string | null;
   scopes: string[];
+  missing_scopes?: string[];
   is_expired: boolean;
   requires_reauth: boolean;
+  requires_consent?: boolean;
   connected_at?: string | null;
 }
 
@@ -37,7 +42,9 @@ export interface AuthStatusResponse {
   google_account: GoogleAccountStatus;
 }
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Use relative URL so all API calls are proxied through Vite dev server (vite.config.ts proxy targets the backend port)
+// In production, set VITE_API_URL to the absolute backend URL if deploying separately
+export const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) || '';
 
 export async function fetchHealth(): Promise<HealthCheckResult> {
   const startTime = performance.now();
@@ -117,7 +124,10 @@ export async function disconnectGoogleAccount(): Promise<void> {
   }
 }
 
-export function getGoogleOAuthUrl(): string {
+export function getGoogleOAuthUrl(reconnect: boolean = false): string {
+  if (reconnect) {
+    return `${API_BASE_URL}/auth/google?reconnect=true`;
+  }
   return `${API_BASE_URL}/auth/google`;
 }
 
@@ -234,6 +244,171 @@ export async function fetchGmailMessageDetail(messageId: string): Promise<GmailM
   }
 
   return await response.json();
+}
+
+export interface GmailReplyDraftRequest {
+  tone?: 'professional' | 'friendly' | 'concise' | 'formal' | 'direct' | string;
+  custom_instructions?: string;
+  include_thread_context?: boolean;
+}
+
+export interface GmailReplyDraftResponse {
+  id?: string | null;
+  message_id: string;
+  thread_id?: string | null;
+  gmail_draft_id?: string | null;
+  gmail_web_url?: string | null;
+  subject: string;
+  recipient: string;
+  reply_body: string;
+  tone_used: string;
+  custom_instructions?: string | null;
+  placeholders_detected: string[];
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface GmailReplyDraftSaveRequest {
+  reply_body: string;
+  tone?: string;
+  custom_instructions?: string;
+  placeholders_detected?: string[];
+  thread_id?: string | null;
+  subject?: string;
+  recipient?: string;
+  gmail_draft_id?: string | null;
+}
+
+export async function generateGmailReplyDraft(
+  messageId: string,
+  payload?: GmailReplyDraftRequest
+): Promise<GmailReplyDraftResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/gmail/messages/${encodeURIComponent(messageId)}/reply-draft`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload || {}),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to generate reply draft' }));
+    const err = new Error(errorData.detail || `Failed to generate reply draft (HTTP ${response.status})`);
+    (err as any).status = response.status;
+
+    const isDailyQuota =
+      response.headers.get('X-Quota-Exhausted') === 'daily' ||
+      errorData.detail?.toLowerCase().includes('daily quota') ||
+      errorData.detail?.toLowerCase().includes('perday') ||
+      errorData.detail?.toLowerCase().includes('billing-enabled');
+
+    (err as any).isDailyQuota = isDailyQuota;
+
+    if (isDailyQuota) {
+      (err as any).retryAfter = null;
+    } else {
+      const retryHeader = response.headers.get('Retry-After');
+      if (retryHeader) {
+        (err as any).retryAfter = parseInt(retryHeader, 10);
+      } else {
+        const match = errorData.detail?.match(/(?:~|in\s+)?([0-9]+)\s*s/i);
+        if (match) {
+          (err as any).retryAfter = parseInt(match[1], 10);
+        }
+      }
+    }
+    throw err;
+  }
+
+  return await response.json();
+}
+
+export async function fetchSavedGmailReplyDraft(
+  messageId: string
+): Promise<GmailReplyDraftResponse | null> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/gmail/messages/${encodeURIComponent(messageId)}/reply-draft`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch saved draft' }));
+    throw new Error(errorData.detail || `Failed to fetch saved draft (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function saveGmailReplyDraft(
+  messageId: string,
+  payload: GmailReplyDraftSaveRequest
+): Promise<GmailReplyDraftResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/gmail/messages/${encodeURIComponent(messageId)}/reply-draft`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to save reply draft' }));
+    throw new Error(errorData.detail || `Failed to save reply draft (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export async function saveGmailReplyDraftToMailbox(
+  messageId: string,
+  payload: GmailReplyDraftSaveRequest
+): Promise<GmailReplyDraftResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/gmail/messages/${encodeURIComponent(messageId)}/save-to-gmail`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to save draft directly to Gmail' }));
+    const err = new Error(errorData.detail || `Failed to save draft directly to Gmail (HTTP ${response.status})`);
+    (err as any).status = response.status;
+    throw err;
+  }
+
+  return await response.json();
+}
+
+export async function deleteSavedGmailReplyDraft(
+  messageId: string
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/gmail/messages/${encodeURIComponent(messageId)}/reply-draft`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok && response.status !== 404) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to discard reply draft' }));
+    throw new Error(errorData.detail || `Failed to discard reply draft (HTTP ${response.status})`);
+  }
 }
 
 // ============================================================================
@@ -1698,3 +1873,635 @@ export async function sendTestPushNotification(title?: string, body?: string): P
 
   return await response.json();
 }
+
+// ============================================================================
+// Resume & Job Ingestion / Application Agent API (Milestones 1-4)
+// ============================================================================
+
+export interface ResumeItem {
+  id: string;
+  user_id: string;
+  filename: string;
+  file_type: string;
+  file_size_bytes: number;
+  created_at: string;
+  updated_at: string;
+  structured_data?: {
+    candidate_name?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    skills?: string[];
+    experience?: Array<{ title?: string; company?: string; duration?: string; highlights?: string[] }>;
+    education?: Array<{ degree?: string; institution?: string; year?: string }>;
+  };
+  raw_text?: string;
+}
+
+export interface ResumeListResponse {
+  total: number;
+  resumes: ResumeItem[];
+}
+
+export interface JobResolveUrlResponse {
+  resolved_url: string;
+  accessible: boolean;
+  source_type: string;
+  extracted_text?: string | null;
+  detected_title?: string | null;
+  detected_company?: string | null;
+  redirect_history: string[];
+  requires_manual_paste: boolean;
+  reason?: string | null;
+}
+
+export interface JobParseResponse {
+  raw_text?: string;
+  source_url?: string | null;
+  structured_jd?: {
+    job_title?: string | null;
+    company_name?: string | null;
+    location?: string | null;
+    job_type?: string | null;
+    experience_level?: string | null;
+    description_summary?: string | null;
+    required_skills?: string[];
+    preferred_skills?: string[];
+    responsibilities?: string[];
+    requirements?: string[];
+    recruiter_email?: string | null;
+    recruiter_name?: string | null;
+    application_url?: string | null;
+  };
+  job_title?: string;
+  company_name?: string;
+  location?: string | null;
+  description_summary?: string;
+  skills_required?: string[];
+  skills_preferred?: string[];
+  required_skills?: string[];
+  preferred_skills?: string[];
+  qualifications?: string[];
+  responsibilities?: string[];
+  eligibility_criteria?: string[];
+  recruiter_email?: string | null;
+  recruiter_name?: string | null;
+  salary_range?: string | null;
+  employment_type?: string | null;
+}
+
+export type JobApplicationStatus =
+  | 'pending_manual_review'
+  | 'saved'
+  | 'draft_local'
+  | 'draft_saved_to_gmail'
+  | 'applied_manually'
+  | 'interview'
+  | 'offer'
+  | 'rejected'
+  | 'archived';
+
+export type JobGmailSyncStatus =
+  | 'not_synced'
+  | 'synced'
+  | 'sync_error'
+  | 'draft_deleted_in_gmail';
+
+export interface JobApplicationItem {
+  id: string;
+  user_id: string;
+  source_url: string | null;
+  job_url?: string | null;
+  source?: string | null;
+  company_name: string;
+  job_title: string;
+  location: string | null;
+  recruiter_email: string | null;
+  structured_jd?: any;
+  job_description_raw: string;
+  skills_extracted: string[];
+  status: JobApplicationStatus;
+  gmail_sync_status: JobGmailSyncStatus;
+  gmail_draft_id: string | null;
+  email_draft_recipient: string | null;
+  email_draft_subject: string | null;
+  email_draft_body: string | null;
+  has_email_draft: boolean;
+  has_match_analysis: boolean;
+  applied_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JobListResponse {
+  total: number;
+  jobs: JobApplicationItem[];
+}
+
+export interface MatchedSkill {
+  requirement: string;
+  category: string;
+  evidence: string;
+  confidence: string;
+}
+
+export interface MissingSkill {
+  requirement: string;
+  category: string;
+  status: string;
+  recommendation?: string | null;
+}
+
+export interface JobMatchAnalysis {
+  job_id: string;
+  resume_id: string;
+  resume_title?: string;
+  evidence_coverage_percentage: number;
+  calculation_explanation: string;
+  matched_requirements: MatchedSkill[];
+  missing_requirements: MissingSkill[];
+  key_strengths?: string[];
+  potential_concerns_or_gaps?: string[];
+  // Backwards compatibility aliases
+  coverage_score?: number;
+  matched_skills?: MatchedSkill[];
+  missing_skills?: MissingSkill[];
+  scoring_breakdown?: {
+    formula?: string;
+    limitations?: string;
+    matched_count?: number;
+    total_count?: number;
+  };
+}
+
+export interface JobEmailDraft {
+  job_id: string;
+  resume_id?: string | null;
+  recipient_email?: string | null;
+  recipient_name?: string | null;
+  recipient?: string | null;
+  subject: string;
+  body: string;
+  placeholders?: string[];
+  unresolved_placeholders?: string[];
+  verified_skills_referenced?: string[];
+  tone?: string;
+  status: JobApplicationStatus;
+  gmail_draft_id?: string | null;
+  gmail_sync_status: JobGmailSyncStatus;
+}
+
+export interface JobSaveGmailDraftResponse {
+  message: string;
+  job_id: string;
+  gmail_draft_id: string;
+  gmail_sync_status: JobGmailSyncStatus;
+  status: JobApplicationStatus;
+  recipient: string;
+  subject: string;
+  attachment_filename?: string | null;
+}
+
+// Resumes API
+export async function fetchUserResumes(): Promise<ResumeListResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/resumes`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to fetch resumes' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to fetch resumes');
+  }
+  const data = await response.json();
+  if (Array.isArray(data)) {
+    return { total: data.length, resumes: data };
+  }
+  return { total: data.total ?? data.resumes?.length ?? 0, resumes: data.resumes || [] };
+}
+
+export async function uploadUserResume(file: File, filename?: string): Promise<ResumeItem> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (filename) {
+    formData.append('filename', filename);
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/resumes/upload`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to upload resume' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to upload resume');
+  }
+  return await response.json();
+}
+
+export async function createUserResumeFromText(rawText: string, filename?: string): Promise<ResumeItem> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/resumes/text`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ raw_text: rawText, filename: filename || 'resume.txt' }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to create resume text' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to create resume text');
+  }
+  return await response.json();
+}
+
+export async function deleteUserResume(resumeId: string): Promise<{ message: string; id: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to delete resume' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to delete resume');
+  }
+  return await response.json();
+}
+
+// Jobs API
+export async function resolveJobUrl(url: string): Promise<JobResolveUrlResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs/resolve-url`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ url }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to resolve job URL' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to resolve job URL');
+  }
+  return await response.json();
+}
+
+export async function parseJobDescription(params: {
+  raw_text: string;
+  source_url?: string;
+  job_title?: string;
+  company_name?: string;
+}): Promise<JobParseResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs/parse`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to parse job description' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to parse job description');
+  }
+  return await response.json();
+}
+
+export async function createJobApplication(payload: {
+  source_url?: string;
+  job_url?: string;
+  company_name?: string;
+  job_title?: string;
+  location?: string;
+  recruiter_email?: string;
+  raw_jd_text?: string;
+  job_description_raw?: string;
+  resume_id?: string;
+  source?: string;
+  pending_capture_id?: string;
+  skills_extracted?: string[];
+  status?: JobApplicationStatus;
+}): Promise<JobApplicationItem> {
+  const requestBody = {
+    raw_jd_text: payload.raw_jd_text || payload.job_description_raw || '',
+    job_url: payload.job_url || payload.source_url,
+    job_title: payload.job_title,
+    company_name: payload.company_name,
+    location: payload.location,
+    resume_id: payload.resume_id,
+    source: payload.source || 'linkedin',
+    pending_capture_id: payload.pending_capture_id,
+  };
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to create job application' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to create job application');
+  }
+  return await response.json();
+}
+
+export async function fetchPendingQuickCaptures(): Promise<JobApplicationItem[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs/pending-captures`, {
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    return [];
+  }
+  return await response.json();
+}
+
+export async function fetchJobApplications(params?: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<JobListResponse> {
+  const queryParams = new URLSearchParams();
+  if (params?.status) queryParams.append('status', params.status);
+  if (params?.limit) queryParams.append('limit', String(params.limit));
+  if (params?.offset) queryParams.append('offset', String(params.offset));
+
+  const qs = queryParams.toString();
+  const url = `${API_BASE_URL}/api/v1/jobs${qs ? `?${qs}` : ''}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to fetch job applications' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to fetch job applications');
+  }
+  const data = await response.json();
+  // Backend returns array of JobSummaryResponse directly from GET /api/v1/jobs
+  if (Array.isArray(data)) {
+    return { total: data.length, jobs: data };
+  }
+  return data;
+}
+
+export async function fetchJobApplication(jobId: string): Promise<JobApplicationItem> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs/${jobId}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to fetch job application' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to fetch job application');
+  }
+  return await response.json();
+}
+
+export async function deleteJobApplication(jobId: string, deleteGmailDraft: boolean = false): Promise<{ message: string; id: string; gmail_draft_deleted: boolean }> {
+  const url = `${API_BASE_URL}/api/v1/jobs/${jobId}?delete_gmail_draft=${deleteGmailDraft}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to delete job application' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to delete job application');
+  }
+  return { message: 'Deleted successfully', id: jobId, gmail_draft_deleted: deleteGmailDraft };
+}
+
+export async function deletePendingQuickCapture(captureId: string): Promise<{ message: string; id: string }> {
+  const url = `${API_BASE_URL}/api/v1/jobs/pending-captures/${captureId}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+  if (!response.ok) {
+    // Fallback to generic delete if needed
+    const res = await deleteJobApplication(captureId, false);
+    return { message: res.message, id: res.id };
+  }
+  return { message: 'Dismissed and deleted successfully', id: captureId };
+}
+
+export async function matchResumeToJob(jobId: string, resumeId?: string): Promise<JobMatchAnalysis> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs/${jobId}/match`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(resumeId ? { resume_id: resumeId } : {}),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to match resume to job' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to match resume to job');
+  }
+  return await response.json();
+}
+
+export async function fetchJobMatchAnalysis(jobId: string): Promise<JobMatchAnalysis> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs/${jobId}/match`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to fetch match analysis' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to fetch match analysis');
+  }
+  return await response.json();
+}
+
+export async function generateJobEmailDraft(
+  jobId: string,
+  payload?: { resume_id?: string; custom_instructions?: string; tone?: string }
+): Promise<JobEmailDraft> {
+  const requestBody = {
+    resume_id: payload?.resume_id,
+    tone: payload?.tone || 'professional',
+    user_instructions: payload?.custom_instructions,
+  };
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs/${jobId}/generate-email`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to generate application email draft' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to generate application email draft');
+  }
+  return await response.json();
+}
+
+export async function fetchJobEmailDraft(jobId: string): Promise<JobEmailDraft> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs/${jobId}/draft`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to fetch email draft' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to fetch email draft');
+  }
+  return await response.json();
+}
+
+export async function updateJobEmailDraft(
+  jobId: string,
+  payload: { recipient?: string; recipient_email?: string; recipient_name?: string; subject?: string; body?: string }
+): Promise<JobEmailDraft> {
+  const requestBody = {
+    recipient_email: payload.recipient_email || payload.recipient,
+    recipient_name: payload.recipient_name,
+    subject: payload.subject,
+    body: payload.body,
+  };
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs/${jobId}/draft`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to update email draft' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to update email draft');
+  }
+  return await response.json();
+}
+
+export async function saveJobToGmailDraft(
+  jobId: string,
+  payload?: { resume_id?: string }
+): Promise<JobSaveGmailDraftResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs/${jobId}/save-gmail-draft`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload || {}),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to save to Gmail drafts' }));
+    const errorObj = new Error(err.error?.message || err.detail || 'Failed to save to Gmail drafts');
+    (errorObj as any).status = response.status;
+    (errorObj as any).code = err.error?.code || (typeof err.detail === 'object' ? err.detail?.code : undefined);
+    (errorObj as any).reconnectUrl = err.error?.details?.reconnect_url || (typeof err.detail === 'object' ? err.detail?.reconnect_url : undefined);
+    throw errorObj;
+  }
+  return await response.json();
+}
+
+export async function updateJobStatus(
+  jobId: string,
+  status: JobApplicationStatus
+): Promise<JobApplicationItem> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/jobs/${jobId}/status`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to update job status' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to update job status');
+  }
+  return await response.json();
+}
+
+// -----------------------------------------------------------------------------
+// Extension Token Management API
+// -----------------------------------------------------------------------------
+
+export interface ExtensionTokenStatus {
+  has_token: boolean;
+  id?: string | null;
+  token_prefix?: string | null;
+  name?: string | null;
+  is_active: boolean;
+  last_used_at?: string | null;
+  created_at?: string | null;
+  revoked_at?: string | null;
+}
+
+export interface ExtensionTokenCreated {
+  id: string;
+  token_prefix: string;
+  raw_token: string;
+  name: string;
+  created_at: string;
+  message: string;
+}
+
+export async function fetchExtensionTokenStatus(): Promise<ExtensionTokenStatus> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/extension-token`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to fetch extension token status' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to fetch extension token status');
+  }
+  return await response.json();
+}
+
+export async function generateExtensionToken(name?: string): Promise<ExtensionTokenCreated> {
+  const query = name ? `?name=${encodeURIComponent(name)}` : '';
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/extension-token/generate${query}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to generate extension token' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to generate extension token');
+  }
+  return await response.json();
+}
+
+export async function revokeExtensionToken(): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/extension-token/revoke`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Failed to revoke extension token' }));
+    throw new Error(err.error?.message || err.detail || 'Failed to revoke extension token');
+  }
+  return await response.json();
+}
+

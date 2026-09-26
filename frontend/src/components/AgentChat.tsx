@@ -3,13 +3,9 @@ import {
   Bot,
   Send,
   Sparkles,
-  ShieldCheck,
   AlertTriangle,
+  ShieldCheck,
   RotateCcw,
-  CheckCircle2,
-  XCircle,
-  Terminal,
-  Wrench,
   Loader2,
   Mail,
   Calendar as CalendarIcon,
@@ -25,6 +21,7 @@ import {
 } from '../services/api';
 import { VoiceControls } from './VoiceControls';
 import { sendVoiceChat, cancelVoiceExecution, VoiceChatResponse } from '../services/voiceApi';
+import { ChatMessageBubble } from './chat/ChatMessageBubble';
 
 interface AgentChatProps {
   isAuthenticated: boolean;
@@ -63,6 +60,13 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<ConfirmationChallenge | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
   const [lastAudioBase64, setLastAudioBase64] = useState<string | null>(null);
   const [lastAudioMimeType, setLastAudioMimeType] = useState<string | null>(null);
   const [ttsStatus, setTtsStatus] = useState<'success' | 'degraded' | 'disabled' | undefined>(undefined);
@@ -323,121 +327,17 @@ export const AgentChat: React.FC<AgentChatProps> = ({ isAuthenticated }) => {
       </div>
 
       {/* Messages Container */}
-      <div className="flex-1 p-6 overflow-y-auto space-y-4">
+      <div className="flex-1 p-6 overflow-y-auto space-y-3">
         {messages.map((msg) => (
-          <div
+          <ChatMessageBubble
             key={msg.id}
-            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
-          >
-            <div
-              className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 text-sm leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-blue-600 text-white rounded-tr-none shadow-md shadow-blue-600/20'
-                  : 'bg-slate-800/90 text-slate-200 border border-slate-700/70 rounded-tl-none shadow-sm'
-              }`}
-            >
-              {/* Message Header */}
-              <div className="flex items-center gap-2 mb-1.5 opacity-70 text-[11px]">
-                {msg.role === 'assistant' ? (
-                  <span className="font-semibold text-indigo-300 flex items-center gap-1">
-                    <Bot className="w-3.5 h-3.5" /> AI Assistant
-                  </span>
-                ) : (
-                  <span className="font-semibold text-blue-200">You</span>
-                )}
-                <span>&bull;</span>
-                <span>{msg.timestamp}</span>
-              </div>
-
-              {/* Message Content */}
-              <div className="whitespace-pre-wrap font-sans text-sm">{msg.content}</div>
-
-              {/* M12 Personalization Chip */}
-              {msg.personalization?.applied_keys && msg.personalization.applied_keys.length > 0 && (
-                <div className="mt-2 flex items-center gap-1.5">
-                  <span
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/35 px-2 py-0.5 rounded-full"
-                    title={msg.personalization.reason || 'Personalized preferences applied'}
-                  >
-                    <Sparkles className="w-3 h-3 text-indigo-400" />
-                    <span>Personalized ✦</span>
-                    <span className="text-indigo-400/80 lowercase font-mono">({msg.personalization.applied_keys.join(', ')})</span>
-                  </span>
-                </div>
-              )}
-
-              {/* Tool Execution Badges */}
-              {msg.toolsCalled && msg.toolsCalled.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-slate-700/60 space-y-1.5">
-                  <div className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 flex items-center gap-1">
-                    <Terminal className="w-3 h-3 text-blue-400" />
-                    <span>Tools Executed ({msg.toolsCalled.length})</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {msg.toolsCalled.map((tool, idx) => (
-                      <div
-                        key={idx}
-                        className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border ${
-                          tool.status === 'completed'
-                            ? 'bg-slate-900/80 border-slate-700 text-slate-300'
-                            : tool.status === 'confirmation_required'
-                            ? 'bg-amber-950/40 border-amber-800/60 text-amber-300'
-                            : 'bg-rose-950/40 border-rose-800/60 text-rose-300'
-                        }`}
-                      >
-                        <Wrench className="w-3 h-3 text-slate-400" />
-                        <span className="font-mono text-[11px] font-medium">{tool.name}</span>
-                        {tool.status === 'completed' ? (
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                        ) : tool.status === 'confirmation_required' ? (
-                          <AlertTriangle className="w-3 h-3 text-amber-400" />
-                        ) : (
-                          <XCircle className="w-3 h-3 text-rose-400" />
-                        )}
-                        <span className="text-[10px] text-slate-400 font-sans">{tool.summary}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Confirmation Challenge Card */}
-              {msg.requiresConfirmation && msg.confirmation && (
-                <div className="mt-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2.5">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                    <div className="space-y-1 text-xs">
-                      <div className="font-semibold text-amber-300 flex items-center gap-1.5">
-                        <span>Confirmation Required</span>
-                        <span className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-medium">
-                          {msg.confirmation.action}
-                        </span>
-                      </div>
-                      <p className="text-amber-200/90">{msg.confirmation.message}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      onClick={() => handleConfirmAction(msg.confirmation!)}
-                      disabled={loading}
-                      className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>Confirm & Execute</span>
-                    </button>
-                    <button
-                      onClick={handleCancelConfirmation}
-                      disabled={loading}
-                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+            message={msg}
+            loading={loading}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+            onConfirmAction={handleConfirmAction}
+            onCancelConfirmation={handleCancelConfirmation}
+          />
         ))}
 
         {loading && (

@@ -1,7 +1,7 @@
 """
 Unit tests for GeminiEmbeddingProvider and EmbeddingProvider Base (Milestone 7).
 Verifies:
-- Text embedding generation (text-embedding-004)
+- Text embedding generation (gemini-embedding-001)
 - Batch document embedding generation
 - Strict 768 vector dimension validation
 - EmbeddingDimensionMismatchError exception on incompatible dimensions
@@ -30,7 +30,7 @@ from app.ai.embeddings.gemini_embeddings import GeminiEmbeddingProvider
 def gemini_embedder():
     return GeminiEmbeddingProvider(
         api_key="test-embedding-api-key",
-        model_name="text-embedding-004",
+        model_name="gemini-embedding-001",
         dimensions=768,
     )
 
@@ -38,13 +38,13 @@ def gemini_embedder():
 def test_embedding_provider_initialization(gemini_embedder):
     """Verify provider properties and dimension configuration."""
     assert gemini_embedder.provider_name == "gemini"
-    assert gemini_embedder.model_name == "text-embedding-004"
+    assert gemini_embedder.model_name == "gemini-embedding-001"
     assert gemini_embedder.dimensions == 768
 
 
 @pytest.mark.asyncio
 async def test_embed_text_success(gemini_embedder):
-    """Verify single text string embedding returns 768-dim float vector."""
+    """Verify single text string embedding returns 768-dim float vector and includes outputDimensionality."""
     mock_vector = [0.05 * (i % 10) for i in range(768)]
     mock_response_data = {
         "embedding": {
@@ -62,6 +62,11 @@ async def test_embed_text_success(gemini_embedder):
 
         assert len(result) == 768
         assert result == mock_vector
+
+        # Check payload
+        payload = mock_post.call_args[1]["json"]
+        assert payload["outputDimensionality"] == 768
+        assert payload["model"] == "models/gemini-embedding-001"
 
 
 @pytest.mark.asyncio
@@ -153,7 +158,7 @@ async def test_embed_text_timeout_error(gemini_embedder):
 @pytest.mark.asyncio
 async def test_embed_text_missing_api_key_raises_auth_error():
     """Verify provider with empty API key raises EmbeddingAuthenticationError."""
-    embedder = GeminiEmbeddingProvider(api_key="", model_name="text-embedding-004")
+    embedder = GeminiEmbeddingProvider(api_key="", model_name="gemini-embedding-001")
     with pytest.raises(EmbeddingAuthenticationError) as exc_info:
         await embedder.embed_text("Missing key test")
     assert "missing or empty" in str(exc_info.value).lower()

@@ -14,6 +14,7 @@ from typing import List, Optional
 from unittest.mock import AsyncMock, patch
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.user import User
 from app.models.task import Task
 from app.ai.providers.base import (
@@ -184,8 +185,8 @@ async def test_orchestrator_max_tool_calls_bounded_loop(test_db: AsyncSession):
         message="Loop forever please"
     )
 
-    # Must be bounded by MAX_TOOL_CALLS_PER_TURN (5)
-    assert len(res.tool_activities) <= 5
+    # Must be bounded by MAX_TOOL_CALLS_PER_TURN
+    assert len(res.tool_activities) == settings.MAX_TOOL_CALLS_PER_TURN
 
 
 @pytest.mark.asyncio

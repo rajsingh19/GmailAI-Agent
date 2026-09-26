@@ -46,24 +46,27 @@ router = APIRouter(tags=["Authentication"])
 async def auth_google(
     request: Request,
     redirect: bool = Query(default=True, description="Redirect directly to Google if true, else return JSON"),
+    reconnect: bool = Query(default=False, description="Force consent prompt and account chooser"),
+    prompt: Optional[str] = Query(default=None, description="Explicit prompt override"),
 ) -> Response:
     """
     Step 1 of OAuth Flow:
     1. Enforce host consistency: redirect 127.0.0.1 -> localhost:8000.
     2. Generate cryptographically signed state token with 10-minute TTL.
-    3. Build authorization URL with least-privilege scopes (Gmail read-only).
+    3. Build authorization URL with least-privilege scopes (Gmail read-only, Calendar read-only).
     4. Store state in HttpOnly SameSite cookie (safely preserving recent unexpired attempts).
     5. Redirect user to Google OAuth consent page.
     """
     # Enforce localhost hostname consistency to ensure cookies match callback domain
     host_header = request.headers.get("host", "")
     if host_header.startswith("127.0.0.1"):
+        query_str = f"?{request.query_params}" if request.query_params else ""
         logger.info("Redirecting OAuth initiation from 127.0.0.1 to localhost for cookie domain consistency")
-        return RedirectResponse(url="http://localhost:8000/auth/google", status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=f"http://localhost:8000/auth/google{query_str}", status_code=status.HTTP_302_FOUND)
 
     try:
         state = SecurityManager.generate_oauth_state(ttl_seconds=settings.STATE_COOKIE_MAX_AGE)
-        authorization_url = OAuthService.create_authorization_url(state=state)
+        authorization_url = OAuthService.create_authorization_url(state=state, reconnect=reconnect, prompt=prompt)
     except MissingCredentialsError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -320,3 +323,70 @@ async def disconnect_google(
     """
     await OAuthService.disconnect_account(db=db, user_id=current_user.id)
     return {"message": "Google account successfully disconnected"}
+
+
+# =============================================================================
+# 6. LinkedIn Extension Token Management Endpoints
+# =============================================================================
+
+from app.schemas.extension import (
+    ExtensionTokenStatusResponse,
+    ExtensionTokenCreatedResponse,
+    ExtensionTokenRevokeResponse,
+)
+from app.services.extension_service import ExtensionService
+
+
+@router.get(
+    "/auth/extension-token",
+    response_model=ExtensionTokenStatusResponse,
+    summary="Get Extension Token Status",
+    description="Returns current extension token metadata, last used timestamp, and revocation state.",
+)
+async def get_extension_token_status(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ExtensionTokenStatusResponse:
+    """
+    Retrieves the status of the user's extension token.
+    Never exposes raw tokens or cryptographic hashes.
+    """
+    service = ExtensionService(db)
+    return await service.get_token_status(user_id=current_user.id)
+
+
+@router.post(
+    "/auth/extension-token/generate",
+    response_model=ExtensionTokenCreatedResponse,
+    summary="Generate New Extension Token",
+    description="Generates a distinct, revocable extension token. Returns the raw token once for copying.",
+)
+async def generate_extension_token(
+    name: Optional[str] = Query(default="LinkedIn Browser Extension", description="Descriptive token label"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ExtensionTokenCreatedResponse:
+    """
+    Generates and persists a SHA-256 hashed extension credential.
+    Any previously active tokens for this user are automatically revoked.
+    """
+    service = ExtensionService(db)
+    return await service.generate_token(user_id=current_user.id, name=name or "LinkedIn Browser Extension")
+
+
+@router.post(
+    "/auth/extension-token/revoke",
+    response_model=ExtensionTokenRevokeResponse,
+    summary="Revoke Extension Token",
+    description="Immediately revokes active extension credentials without invalidating user session.",
+)
+async def revoke_extension_token(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ExtensionTokenRevokeResponse:
+    """
+    Revokes the user's extension token.
+    """
+    service = ExtensionService(db)
+    return await service.revoke_token(user_id=current_user.id)
+

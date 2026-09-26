@@ -106,7 +106,13 @@ export const CalendarCard: React.FC<CalendarCardProps> = ({ authStatus }) => {
         max_results: 30,
         single_events: true,
       });
-      setEvents(res.events);
+      const seen = new Set<string>();
+      const deduped = (res.events || []).filter((e) => {
+        if (!e || !e.id || seen.has(e.id)) return false;
+        seen.add(e.id);
+        return true;
+      });
+      setEvents(deduped);
     } catch (err: any) {
       setError(err.message || 'Failed to load calendar events');
     } finally {

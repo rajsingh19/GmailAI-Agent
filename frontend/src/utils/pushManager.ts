@@ -47,25 +47,36 @@ export function getNotificationPermission(): NotificationPermission | 'unsupport
   return Notification.permission;
 }
 
+let _registrationPromise: Promise<ServiceWorkerRegistration | null> | null = null;
+
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!isPushSupported()) {
     console.warn('[PushManager] Push notifications are not supported in this browser.');
     return null;
   }
 
-  try {
-    const registration = await navigator.serviceWorker.register('/sw.js', {
-      scope: '/',
-    });
-    
-    // Ensure service worker is activated
-    await navigator.serviceWorker.ready;
-    console.log('[PushManager] Service Worker registered successfully with scope:', registration.scope);
-    return registration;
-  } catch (error) {
-    console.error('[PushManager] Service Worker registration failed:', error);
-    throw error;
+  if (_registrationPromise) {
+    return _registrationPromise;
   }
+
+  _registrationPromise = (async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js', {
+        scope: '/',
+      });
+      
+      // Ensure service worker is activated
+      await navigator.serviceWorker.ready;
+      console.log('[PushManager] Service Worker registered successfully with scope:', registration.scope);
+      return registration;
+    } catch (error) {
+      _registrationPromise = null;
+      console.error('[PushManager] Service Worker registration failed:', error);
+      throw error;
+    }
+  })();
+
+  return _registrationPromise;
 }
 
 export async function getExistingSubscription(): Promise<PushSubscription | null> {
@@ -106,7 +117,7 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubsc
   const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
   subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: convertedVapidKey.buffer as ArrayBuffer,
+    applicationServerKey: convertedVapidKey,
   });
 
   return subscription;

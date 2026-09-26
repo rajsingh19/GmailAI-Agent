@@ -33,9 +33,18 @@ export const GoogleConnectionCard: React.FC<GoogleConnectionCardProps> = ({
   const googleEmail = authStatus?.google_account?.email;
   const user = authStatus?.user;
 
+  const requiresConsent = isConnected && (authStatus?.google_account?.requires_consent || authStatus?.google_account?.gmail_connected === false || authStatus?.google_account?.calendar_connected === false);
+  const isGmailConnected = isConnected && authStatus?.google_account?.gmail_connected !== false;
+  const isGmailComposeConnected = isConnected && authStatus?.google_account?.gmail_compose_connected !== false;
+  const isCalendarConnected = isConnected && authStatus?.google_account?.calendar_connected !== false;
+
   const handleConnect = () => {
     // Standard OAuth 2.0 redirect to backend /auth/google
     window.location.href = getGoogleOAuthUrl();
+  };
+
+  const handleReconnect = () => {
+    window.location.href = getGoogleOAuthUrl(true);
   };
 
   const handleDisconnect = async () => {
@@ -84,10 +93,10 @@ export const GoogleConnectionCard: React.FC<GoogleConnectionCardProps> = ({
                   Checking...
                 </span>
               ) : isConnected ? (
-                requiresReauth ? (
+                requiresReauth || requiresConsent ? (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
                     <AlertTriangle className="w-3 h-3" />
-                    Reauthorization Required
+                    Permissions Required
                   </span>
                 ) : isExpired ? (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
@@ -107,7 +116,7 @@ export const GoogleConnectionCard: React.FC<GoogleConnectionCardProps> = ({
               )}
             </h2>
             <p className="text-sm text-slate-400 mt-0.5">
-              Secure OAuth 2.0 connection with strictly read-only Gmail access
+              Secure OAuth 2.0 connection with strictly read-only Gmail & Calendar access
             </p>
           </div>
         </div>
@@ -179,27 +188,53 @@ export const GoogleConnectionCard: React.FC<GoogleConnectionCardProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Active Connection
-                </span>
+                {requiresConsent || requiresReauth ? (
+                  <button
+                    onClick={handleReconnect}
+                    className="text-xs font-semibold text-amber-300 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Grant Permissions
+                  </button>
+                ) : (
+                  <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Active Connection
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Permissions summary */}
-            <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className={`border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+              requiresConsent ? 'bg-amber-500/10 border-amber-500/30' : 'bg-slate-900/50 border-slate-800/80'
+            }`}>
               <div className="space-y-1">
-                <div className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                <div className="text-xs font-medium flex items-center gap-1.5 text-slate-300">
                   <Shield className="w-3.5 h-3.5 text-blue-400" />
                   Account Permissions
                 </div>
-                <div className="text-xs text-slate-300">
-                  Read-only access to Gmail and Google Calendar.
+                <div className="text-xs text-slate-400">
+                  {requiresConsent
+                    ? 'Gmail, Drafts, or Calendar permissions are missing. Please grant permissions to enable email sync and draft creation.'
+                    : 'Read-only access to Gmail and Calendar, with explicit draft composition. Strictly no automated sending.'}
                 </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  Gmail & Calendar Read-Only
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`text-[11px] font-medium px-2.5 py-1 rounded-lg border ${
+                  isGmailConnected ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                }`}>
+                  Gmail: {isGmailConnected ? 'Connected' : 'Missing'}
+                </span>
+                <span className={`text-[11px] font-medium px-2.5 py-1 rounded-lg border ${
+                  isGmailComposeConnected ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                }`}>
+                  Drafts: {isGmailComposeConnected ? 'Connected' : 'Missing'}
+                </span>
+                <span className={`text-[11px] font-medium px-2.5 py-1 rounded-lg border ${
+                  isCalendarConnected ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                }`}>
+                  Calendar: {isCalendarConnected ? 'Connected' : 'Missing'}
                 </span>
               </div>
             </div>

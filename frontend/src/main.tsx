@@ -2,9 +2,18 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { registerServiceWorker } from './utils/pushManager';
+
+// Register existing Service Worker globally on application startup for PWA and push readiness
+registerServiceWorker().catch((err) => {
+  console.warn('[PWA] Startup service worker registration failed:', err);
+});
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>,
 );

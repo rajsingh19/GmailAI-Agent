@@ -41,6 +41,9 @@ COPY --chown=appuser:appgroup app /app/app
 COPY --chown=appuser:appgroup alembic /app/alembic
 COPY --chown=appuser:appgroup alembic.ini /app/alembic.ini
 
+# Ensure persistent resume data directory exists and is owned by appuser
+RUN mkdir -p /app/data/resumes && chown -R appuser:appgroup /app/data
+
 # Switch to non-root user
 USER 10001:10001
 

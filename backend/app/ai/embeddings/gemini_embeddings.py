@@ -1,6 +1,6 @@
 """
 Google Gemini Embedding Provider implementation (Milestone 7).
-Uses Google Generative Language REST API for text-embedding-004 (768 dimensions).
+Uses Google Generative Language REST API for gemini-embedding-001 (768 dimensions).
 """
 import logging
 from typing import List, Dict, Any, Optional
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class GeminiEmbeddingProvider(EmbeddingProvider):
     """
-    Google Gemini REST client for text embeddings (text-embedding-004).
+    Google Gemini REST client for text embeddings (gemini-embedding-001).
     Enforces output dimension validation, batching, and error mapping.
     """
 
@@ -73,9 +73,10 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
 
         url = f"{self.BASE_URL}/models/{self._model_name}:embedContent"
         params = {"key": self._api_key}
-        payload = {
+        payload: Dict[str, Any] = {
             "model": f"models/{self._model_name}",
             "content": {"parts": [{"text": clean_text}]},
+            "outputDimensionality": self._dimensions,
         }
         headers = {"Content-Type": "application/json"}
 
@@ -150,6 +151,7 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
             {
                 "model": f"models/{self._model_name}",
                 "content": {"parts": [{"text": t.strip() or " "}]},
+                "outputDimensionality": self._dimensions,
             }
             for t in texts
         ]

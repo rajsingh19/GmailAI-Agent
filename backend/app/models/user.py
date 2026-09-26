@@ -1,9 +1,22 @@
 import uuid
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.google_account import GoogleAccount, OAuthToken
+    from app.models.task import Task
+    from app.models.reminder import Reminder
+    from app.models.notification import Notification
+    from app.models.user_preference import UserPreference
+    from app.models.user_memory import UserMemory
+    from app.models.push_subscription import PushSubscription
+    from app.models.gmail_draft import GmailReplyDraft
+    from app.models.resume import UserResume
+    from app.models.job_application import JobApplication
+    from app.models.extension_token import ExtensionToken
 
 
 class User(Base, TimestampMixin):
@@ -85,6 +98,30 @@ class User(Base, TimestampMixin):
     )
     push_subscriptions: Mapped[List["PushSubscription"]] = relationship(
         "PushSubscription",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    gmail_reply_drafts: Mapped[List["GmailReplyDraft"]] = relationship(
+        "GmailReplyDraft",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    resumes: Mapped[List["UserResume"]] = relationship(
+        "UserResume",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    job_applications: Mapped[List["JobApplication"]] = relationship(
+        "JobApplication",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    extension_tokens: Mapped[List["ExtensionToken"]] = relationship(
+        "ExtensionToken",
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="selectin",

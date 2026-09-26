@@ -25,17 +25,8 @@ ACTIONABLE_KEYWORDS = [
     r"\breview\s+by\b",
     r"\bplease\s+reply\b",
     r"\basap\b",
-    r"\bmeeting\s+request\b",
-    r"\bmeeting\s+invitation\b",
     r"\bby\s+(today|tomorrow|monday|tuesday|wednesday|thursday|friday|eod)\b",
     r"\bimportant\b",
-    r"\binterview(\s+(call|round|discussion|scheduled|invitation|invite))?\b",
-    r"\btechnical\s+round\b",
-    r"\bscreening\s+call\b",
-    r"\b(assessment|shortlisted)\b",
-    r"\brsvp\b",
-    r"\b(invite|invitation)\b",
-    r"\b(calendar\.app\.google|meet\.google\.com|zoom\.us)\b",
 ]
 ACTION_REGEX = re.compile("|".join(ACTIONABLE_KEYWORDS), re.IGNORECASE)
 
@@ -45,6 +36,7 @@ INTERVIEW_KEYWORDS = [
     r"\bscreening\s+call\b",
     r"\b(assessment|shortlisted)\b",
     r"\bmeeting\s+invitation\b",
+    r"\bmeeting\s+request\b",
     r"\brsvp\b",
     r"\b(calendar\.app\.google|meet\.google\.com|zoom\.us)\b",
 ]
@@ -201,6 +193,21 @@ class GmailDetector:
                 
                 # Deterministic date/time extraction from text
                 event_start, event_end, due_dt = extract_datetime_from_text(combined_text, msg_date_dt)
+
+                # For interview signals, verify the interview is genuinely upcoming (strictly in the future)
+                # Historical emails with past interview dates must never create upcoming interview alerts
+                if has_interview_signal:
+                    interview_time = event_start or due_dt
+                    if interview_time and interview_time <= now:
+                        # Interview date is in the past; completely skip historical interview
+                        continue
+                    elif not interview_time and (now - msg_date_dt).total_seconds() > 86400 * 3:
+                        # Old email with no future date; completely skip historical interview
+                        continue
+
+                # If after validation there is no action keyword, valid future interview, or question, skip
+                if not (has_action_keyword or has_interview_signal or has_question):
+                    continue
 
                 action_payload: Dict[str, Any] = {
                     "title": f"Interview: {subject[:50]}" if has_interview_signal else f"Follow up on: {subject[:50]}",

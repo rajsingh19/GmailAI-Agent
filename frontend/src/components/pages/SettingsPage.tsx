@@ -13,12 +13,16 @@ import {
   Lock,
   Database,
   Check,
+  LogIn,
+  Loader2,
+  Key,
 } from 'lucide-react';
 import { AuthStatusResponse, disconnectGoogleAccount, logout, getGoogleOAuthUrl } from '../../services/api';
 import { PersonalizationSettings } from '../PersonalizationSettings';
 import { MemoryManager } from '../MemoryManager';
 import { PersonalKnowledgeCard } from '../PersonalKnowledgeCard';
 import { NotificationSettings } from '../NotificationSettings';
+import { ExtensionTokenManager } from '../ExtensionTokenManager';
 
 interface SettingsPageProps {
   authStatus: AuthStatusResponse | null;
@@ -31,12 +35,14 @@ type SettingsTab =
   | 'profile'
   | 'ai'
   | 'accounts'
+  | 'extension'
   | 'notifications'
   | 'appearance'
   | 'privacy';
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
   authStatus,
+  loading = false,
   onRefresh,
   onNotify,
 }) => {
@@ -45,13 +51,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const isConnected = authStatus?.google_account?.connected ?? false;
-  const requiresReauth = authStatus?.google_account?.requires_reauth ?? false;
+  const isAuthenticated = authStatus?.authenticated === true;
+  const isConnected = isAuthenticated && (authStatus?.google_account?.connected === true);
+  const isGmailConnected = isConnected && (authStatus?.google_account?.gmail_connected !== false);
+  const isCalendarConnected = isConnected && (authStatus?.google_account?.calendar_connected !== false);
+  const requiresReauth = isAuthenticated && (authStatus?.google_account?.requires_reauth ?? false);
+  const requiresConsent = isConnected && (authStatus?.google_account?.requires_consent || !isGmailConnected || !isCalendarConnected);
   const googleEmail = authStatus?.google_account?.email;
   const user = authStatus?.user;
 
   const handleConnect = () => {
     window.location.href = getGoogleOAuthUrl();
+  };
+
+  const handleReconnect = () => {
+    window.location.href = getGoogleOAuthUrl(true);
   };
 
   const handleDisconnect = async () => {
@@ -89,6 +103,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     { id: 'profile', label: 'Profile', icon: User, desc: 'Personal details & session' },
     { id: 'ai', label: 'AI & Personalization', icon: Sparkles, desc: 'Memory, RAG & preferences' },
     { id: 'accounts', label: 'Connected Accounts', icon: Link2, desc: 'Google, Gmail & Calendar' },
+    { id: 'extension', label: 'Browser Extension', icon: Key, desc: 'Capture LinkedIn jobs & tokens' },
     { id: 'notifications', label: 'Notifications', icon: Bell, desc: 'Web Push & PWA alerts' },
     { id: 'appearance', label: 'Appearance', icon: Palette, desc: 'Theme & workspace styling' },
     { id: 'privacy', label: 'Privacy & Security', icon: Shield, desc: 'Permissions & safeguards' },
@@ -142,68 +157,151 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </p>
               </div>
 
-              {/* Profile Card */}
-              <div className="p-6 border border-gray-200 rounded-xl bg-gray-50/30 flex items-center gap-5">
-                <div className="w-16 h-16 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xl ring-4 ring-indigo-50">
-                  {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'R'}
+              {loading ? (
+                <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#4F46E5]" />
+                  <span>Loading profile...</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-base font-semibold text-gray-900 truncate">
-                    {user?.full_name || 'Raj Singh'}
-                  </h3>
-                  <p className="text-xs text-gray-500 truncate mt-0.5">
-                    {user?.email || 'raj@example.com'}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Active User
-                    </span>
-                    <span className="text-[11px] text-gray-400">
-                      ID: {user?.id ? user.id.slice(0, 8) + '...' : 'authenticated'}
-                    </span>
+              ) : !isAuthenticated ? (
+                <>
+                  {/* Guest Profile Card */}
+                  <div className="p-6 border border-slate-200 rounded-xl bg-slate-50/50 flex items-center gap-5">
+                    <div className="w-16 h-16 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xl ring-4 ring-slate-100 flex-shrink-0">
+                      G
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-semibold text-gray-900 truncate">
+                        Guest User
+                      </h3>
+                      <p className="text-xs text-gray-500 truncate mt-0.5">
+                        Not signed in
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                          Guest Session
+                        </span>
+                        <span className="text-[11px] text-gray-400">
+                          ID: Unauthenticated
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Details form */}
-              <div className="space-y-4 pt-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    disabled
-                    value={user?.full_name || 'Raj Singh'}
-                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    disabled
-                    value={user?.email || 'raj@example.com'}
-                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800"
-                  />
-                </div>
-              </div>
+                  {/* Details form */}
+                  <div className="space-y-4 pt-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        disabled
+                        value=""
+                        placeholder="Guest User"
+                        className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 placeholder:text-gray-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Email Address</label>
+                      <input
+                        type="email"
+                        disabled
+                        value=""
+                        placeholder="Not signed in"
+                        className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 placeholder:text-gray-400"
+                      />
+                    </div>
+                  </div>
 
-              {/* Session / Logout */}
-              <div className="pt-6 border-t border-gray-200 flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-medium text-gray-900">Sign Out</h4>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    End your current session on this device.
-                  </p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  disabled={actionLoading}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Log Out</span>
-                </button>
-              </div>
+                  {/* Sign In Prompt */}
+                  <div className="pt-6 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-xs font-medium text-gray-900">Sign in with Google</h4>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Authenticate to link your profile and enable personal features.
+                      </p>
+                    </div>
+                    <a
+                      href={getGoogleOAuthUrl()}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#4F46E5] hover:bg-[#4338CA] rounded-lg transition-colors shadow-2xs flex-shrink-0 cursor-pointer"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>Sign in with Google</span>
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Authenticated Profile Card */}
+                  <div className="p-6 border border-gray-200 rounded-xl bg-gray-50/30 flex items-center gap-5">
+                    {user?.picture_url ? (
+                      <img
+                        src={user.picture_url}
+                        alt={user.full_name || 'User'}
+                        className="w-16 h-16 rounded-full object-cover ring-4 ring-indigo-50 border border-gray-200 flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xl ring-4 ring-indigo-50 flex-shrink-0">
+                        {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-semibold text-gray-900 truncate">
+                        {user?.full_name || 'Personal Assistant User'}
+                      </h3>
+                      <p className="text-xs text-gray-500 truncate mt-0.5">
+                        {user?.email || 'No email associated'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Active User
+                        </span>
+                        <span className="text-[11px] text-gray-400">
+                          ID: {user?.id ? user.id.slice(0, 8) + '...' : 'authenticated'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Details form */}
+                  <div className="space-y-4 pt-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        disabled
+                        value={user?.full_name || ''}
+                        className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Email Address</label>
+                      <input
+                        type="email"
+                        disabled
+                        value={user?.email || ''}
+                        className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Session / Logout */}
+                  <div className="pt-6 border-t border-gray-200 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-medium text-gray-900">Sign Out</h4>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        End your current session on this device.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      disabled={actionLoading}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Log Out</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -264,9 +362,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                         Google Workspace
                         {isConnected ? (
-                          requiresReauth ? (
+                          requiresConsent || requiresReauth ? (
                             <span className="px-2 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full">
-                              Reauth Required
+                              Permissions Missing
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full flex items-center gap-1">
@@ -286,19 +384,29 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     </div>
                   </div>
 
-                  <div>
+                  <div className="flex items-center gap-2">
                     {isConnected ? (
-                      <button
-                        onClick={handleDisconnect}
-                        disabled={actionLoading}
-                        className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        Disconnect
-                      </button>
+                      <>
+                        {(requiresConsent || requiresReauth) && (
+                          <button
+                            onClick={handleReconnect}
+                            className="px-3 py-1.5 text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition-colors cursor-pointer"
+                          >
+                            Grant Permissions
+                          </button>
+                        )}
+                        <button
+                          onClick={handleDisconnect}
+                          disabled={actionLoading}
+                          className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          Disconnect
+                        </button>
+                      </>
                     ) : (
                       <button
                         onClick={handleConnect}
-                        className="px-3.5 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors"
+                        className="px-3.5 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors cursor-pointer"
                       >
                         Connect Google
                       </button>
@@ -308,20 +416,34 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                 {/* Scopes Description */}
                 <div className="pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3 bg-gray-50 rounded-lg flex items-start gap-2.5">
+                  <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${isGmailConnected ? 'bg-blue-50/40 border-blue-100' : 'bg-gray-50 border-gray-100'}`}>
                     <Mail className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                     <div>
-                      <div className="text-xs font-medium text-gray-900">Gmail Access</div>
+                      <div className="text-xs font-medium text-gray-900 flex items-center gap-1.5">
+                        <span>Gmail Access</span>
+                        {isConnected && (
+                          <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${isGmailConnected ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {isGmailConnected ? 'Granted' : 'Missing'}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-gray-500 mt-0.5">
                         Strictly read-only (`gmail.readonly`). Cannot send, delete or modify emails.
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-3 bg-gray-50 rounded-lg flex items-start gap-2.5">
+                  <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${isCalendarConnected ? 'bg-emerald-50/40 border-emerald-100' : 'bg-gray-50 border-gray-100'}`}>
                     <Calendar className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
                     <div>
-                      <div className="text-xs font-medium text-gray-900">Google Calendar</div>
+                      <div className="text-xs font-medium text-gray-900 flex items-center gap-1.5">
+                        <span>Google Calendar</span>
+                        {isConnected && (
+                          <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${isCalendarConnected ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {isCalendarConnected ? 'Granted' : 'Missing'}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-gray-500 mt-0.5">
                         Strictly read-only (`calendar.readonly`). Syncs events and schedule agenda.
                       </div>
@@ -329,6 +451,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* BROWSER EXTENSION SECTION */}
+          {activeTab === 'extension' && (
+            <div className="space-y-6 max-w-2xl">
+              <ExtensionTokenManager onNotify={onNotify} />
             </div>
           )}
 

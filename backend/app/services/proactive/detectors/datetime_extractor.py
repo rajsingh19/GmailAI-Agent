@@ -36,6 +36,7 @@ def extract_datetime_from_text(
         return None, None, None
 
     now = now_utc or datetime.now(timezone.utc)
+    tz = now.tzinfo if now.tzinfo is not None else timezone.utc
     base_year = now.year
 
     # 1. Date + Time Range: e.g. "18 Sept • 1–2 am", "18 Sept 1-2 am", "18th Sept 1:00 - 2:00 pm"
@@ -69,8 +70,8 @@ def extract_datetime_from_text(
                     end_h = 0
 
             try:
-                start_dt = datetime(base_year, month, day, start_h, start_m, tzinfo=timezone.utc)
-                end_dt = datetime(base_year, month, day, end_h, end_m, tzinfo=timezone.utc)
+                start_dt = datetime(base_year, month, day, start_h, start_m, tzinfo=tz)
+                end_dt = datetime(base_year, month, day, end_h, end_m, tzinfo=tz)
                 return start_dt, end_dt, start_dt
             except Exception:
                 pass
@@ -94,7 +95,7 @@ def extract_datetime_from_text(
 
         target_date = now.date() if rel_day == "today" else (now.date() + timedelta(days=1))
         try:
-            start_dt = datetime(target_date.year, target_date.month, target_date.day, hour, minute, tzinfo=timezone.utc)
+            start_dt = datetime(target_date.year, target_date.month, target_date.day, hour, minute, tzinfo=tz)
             return start_dt, None, start_dt
         except Exception:
             pass
@@ -125,7 +126,7 @@ def extract_datetime_from_text(
                 hour = 0
 
             try:
-                start_dt = datetime(base_year, month, day, hour, minute, tzinfo=timezone.utc)
+                start_dt = datetime(base_year, month, day, hour, minute, tzinfo=tz)
                 return start_dt, None, start_dt
             except Exception:
                 pass
@@ -144,7 +145,7 @@ def extract_datetime_from_text(
         month = MONTH_MAP.get(m_str)
         if month and 1 <= day <= 31:
             try:
-                start_dt = datetime(base_year, month, day, 9, 0, tzinfo=timezone.utc)
+                start_dt = datetime(base_year, month, day, 9, 0, tzinfo=tz)
                 return start_dt, None, start_dt
             except Exception:
                 pass

@@ -252,7 +252,11 @@ def get_endpoint_policy(path: str) -> Tuple[str, int, int]:
     """
     Returns (bucket_name, max_requests, window_seconds) for a given endpoint path.
     """
-    if path.startswith("/auth/"):
+    if "extension-ingest" in path or "extension-quick-capture" in path:
+        return ("extension_ingest", 20, 60)
+    elif "extension-token" in path:
+        return ("extension_token", 10, 60)
+    elif path.startswith("/auth/"):
         return ("auth", settings.RATE_LIMIT_AUTH_LIMIT, settings.RATE_LIMIT_AUTH_WINDOW)
     elif path.startswith("/api/v1/proactive/actions/execute"):
         return ("action", settings.RATE_LIMIT_ACTION_LIMIT, settings.RATE_LIMIT_ACTION_WINDOW)
@@ -273,6 +277,19 @@ def resolve_request_identity(request: Request) -> Tuple[str, str]:
     Resolves request identity without trusting client-supplied headers or emails.
     Returns (identity_string, identity_type) e.g. ("usr_123", "user") or ("hash_ip", "ip").
     """
+    # 0. Check for Extension Token (scoped per hashed token)
+    ext_token = request.headers.get("X-API-Key") or request.headers.get("X-Extension-Token")
+    if not ext_token:
+        auth_hdr = request.headers.get("Authorization")
+        if auth_hdr and auth_hdr.startswith("Bearer "):
+            cand = auth_hdr[7:].strip()
+            if cand.startswith("ext_"):
+                ext_token = cand
+
+    if ext_token and ext_token.startswith("ext_"):
+        hashed_token = hashlib.sha256(ext_token.encode("utf-8")).hexdigest()[:16]
+        return (f"ext:{hashed_token}", "extension")
+
     # 1. Try resolving server-authenticated session
     token = None
     session_cookie = request.cookies.get(settings.SESSION_COOKIE_NAME)

@@ -34,6 +34,15 @@ class ToolRegistry:
     _tools: Dict[str, ToolDefinition] = {}
 
     @classmethod
+    def _ensure_initialized(cls) -> None:
+        if not cls._tools:
+            try:
+                from app.ai.tools import register_all_tools
+                register_all_tools()
+            except ImportError:
+                pass
+
+    @classmethod
     def register(cls, tool: ToolDefinition) -> None:
         """Registers a tool in the static whitelist."""
         cls._tools[tool.name] = tool
@@ -41,16 +50,19 @@ class ToolRegistry:
     @classmethod
     def get(cls, name: str) -> Optional[ToolDefinition]:
         """Retrieves a tool definition by name."""
+        cls._ensure_initialized()
         return cls._tools.get(name)
 
     @classmethod
     def list_tools(cls) -> List[ToolDefinition]:
         """Returns all registered tool definitions."""
+        cls._ensure_initialized()
         return list(cls._tools.values())
 
     @classmethod
     def get_tool_declarations(cls) -> List[LLMToolDeclaration]:
         """Converts registered tools into normalized declarations for LLM providers."""
+        cls._ensure_initialized()
         declarations = []
         for tool in cls._tools.values():
             decl = LLMToolDeclaration(

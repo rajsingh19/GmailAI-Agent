@@ -15,6 +15,7 @@ from app.ai.providers.base import (
     LLMAuthenticationError,
     LLMRateLimitError,
     LLMTimeoutError,
+    LLMServiceUnavailableError,
 )
 from app.ai.providers.gemini_provider import GeminiProvider
 from app.ai.agent.tool_registry import ToolRegistry
@@ -75,6 +76,80 @@ class AgentOrchestrator:
             sanitized.append(LLMMessage(role=role_mapped, content=content))
 
         return sanitized
+
+    def _synthesize_tool_fallback_response(
+        self,
+        tool_activities: List[ToolActivityInfo],
+        llm_messages: List[LLMMessage],
+        clean_message: str,
+        default_rate_limit_msg: str,
+    ) -> str:
+        """
+        When the final LLM synthesis step is rate-limited (HTTP 429) or temporarily unavailable (HTTP 503),
+        synthesizes a structured, high-reliability response directly from successfully executed tool outputs
+        instead of losing the user's data.
+        """
+        tool_results = [msg for msg in llm_messages if msg.role == "tool" and msg.tool_response]
+        if not tool_results:
+            return default_rate_limit_msg
+
+        # Check if Gmail search was executed
+        gmail_res = next((msg.tool_response for msg in tool_results if msg.tool_name in ("search_gmail", "list_gmail_messages")), None)
+        if gmail_res:
+            if gmail_res.get("status") == "error":
+                return f"{gmail_res.get('message', 'Unable to retrieve Gmail messages.')}"
+
+            messages = gmail_res.get("messages", [])
+            if not messages:
+                return f"I searched your Gmail, but found no matching messages for '{gmail_res.get('query', '')}'."
+
+            # Check for upcoming / pending interview messages
+            upcoming = [m for m in messages if m.get("is_pending_or_upcoming") is True]
+            expired = [m for m in messages if m.get("interview_temporal_status") in ("EXPIRED_PAST", "HISTORICAL")]
+
+            lines = ["Here are the interview details found in your Gmail:"]
+            if upcoming:
+                lines.append("\n**Upcoming & Pending Interviews:**")
+                for u in upcoming:
+                    subj = u.get("subject", "Interview")
+                    sender = u.get("sender", "Unknown")
+                    sched = u.get("interview_scheduled_time") or u.get("timestamp", "Upcoming")
+                    status_lbl = u.get("interview_temporal_status", "UPCOMING")
+                    lines.append(f"• **[{status_lbl}] {subj}**\n  - Scheduled / Deadline: {sched}\n  - From: {sender}")
+            elif expired and any(w in clean_message.lower() for w in ("upcoming", "pending", "scheduled")):
+                lines.append("\n*No upcoming or pending interviews found. All identified interview invitations in your inbox are past or completed.*")
+            else:
+                lines.append("\n**Recent Email Summaries:**")
+                for m in messages:
+                    lines.append(f"• **{m.get('subject', '(No Subject)')}** (From: {m.get('sender', 'Unknown')}) - {m.get('snippet', '')[:100]}...")
+
+            return "\n".join(lines)
+
+        # Check if Calendar list was executed
+        cal_res = next((msg.tool_response for msg in tool_results if msg.tool_name in ("list_calendar_events", "list_user_calendars")), None)
+        if cal_res:
+            if cal_res.get("status") == "error":
+                return f"{cal_res.get('message', 'Unable to retrieve Calendar events.')}"
+            events = cal_res.get("events", [])
+            if not events:
+                return "You have no upcoming calendar events scheduled for this period."
+            lines = ["Here are your upcoming calendar events:"]
+            for ev in events:
+                lines.append(f"• **{ev.get('summary', 'Untitled Event')}**\n  - Start: {ev.get('start')}\n  - Location: {ev.get('location') or 'Not specified'}")
+            return "\n".join(lines)
+
+        # Check if Task list was executed
+        task_res = next((msg.tool_response for msg in tool_results if msg.tool_name == "list_tasks"), None)
+        if task_res:
+            tasks = task_res.get("items", [])
+            if not tasks:
+                return "You have no pending tasks."
+            lines = ["Here are your current tasks:"]
+            for t in tasks:
+                lines.append(f"• [{t.get('status')}] **{t.get('title')}** (Priority: {t.get('priority')})")
+            return "\n".join(lines)
+
+        return default_rate_limit_msg
 
     async def process_message(
         self,
@@ -185,10 +260,13 @@ class AgentOrchestrator:
                     tool_def = ToolRegistry.get(tc.name)
                     friendly_name = tool_def.friendly_name if tool_def else tc.name
 
+                    status_mapped = "completed" if exec_res.status in ("completed", "success") else (
+                        "confirmation_required" if exec_res.status == "confirmation_required" else "failed"
+                    )
                     tool_activities.append(
                         ToolActivityInfo(
                             name=friendly_name,
-                            status=exec_res.status,
+                            status=status_mapped,
                             summary=exec_res.friendly_summary,
                         )
                     )
@@ -210,7 +288,6 @@ class AgentOrchestrator:
                 if confirmation_required:
                     break
 
-
             else:
                 logger.warning("[%s] Max tool calls (%d) reached in turn", execution_id, settings.MAX_TOOL_CALLS_PER_TURN)
                 final_answer = "I have reached the maximum number of actions for this request. Please see the activities above or refine your query."
@@ -218,9 +295,50 @@ class AgentOrchestrator:
         except LLMAuthenticationError as exc:
             logger.warning("[%s] LLM Authentication Error: %s", execution_id, exc)
             final_answer = "The AI service credentials appear to be invalid or unconfigured. Please check backend settings."
-        except LLMRateLimitError as exc:
-            logger.warning("[%s] LLM Rate Limit Error: %s", execution_id, exc)
-            final_answer = "The AI service is temporarily busy (rate limit reached). Please try again in a moment."
+        except (LLMRateLimitError, LLMServiceUnavailableError) as exc:
+            logger.warning("[%s] LLM %s on turn %d: %s", execution_id, type(exc).__name__, turn_count, exc)
+            retry_secs = int(round(exc.retry_after)) if exc.retry_after and exc.retry_after > 0 else 30
+            default_err_msg = (
+                f"The AI service is temporarily busy (rate limit reached). Please try again in ~{retry_secs} seconds."
+                if isinstance(exc, LLMRateLimitError)
+                else f"The AI service is temporarily experiencing high demand. Please try again in ~{retry_secs} seconds."
+            )
+
+            # If tools were already executed during this turn, synthesize the answer from the retrieved data!
+            if tool_activities:
+                final_answer = self._synthesize_tool_fallback_response(
+                    tool_activities=tool_activities,
+                    llm_messages=llm_messages,
+                    clean_message=clean_message,
+                    default_rate_limit_msg=default_err_msg,
+                )
+            else:
+                # Direct intent fallback for common read-only actions when planning turn is rate-limited
+                lower_q = clean_message.lower()
+                if any(w in lower_q for w in ("interview", "interviews")):
+                    from app.ai.tools.gmail_tools import execute_search_gmail
+                    try:
+                        g_res = await execute_search_gmail(user_id=user.id, db=db, query="interview")
+                        llm_messages.append(LLMMessage(role="tool", tool_name="search_gmail", tool_response=g_res))
+                        is_ok = g_res.get("status") == "success"
+                        tool_activities.append(
+                            ToolActivityInfo(
+                                name="Searching Gmail",
+                                status="completed" if is_ok else "failed",
+                                summary=f"Found {g_res.get('count', 0)} messages" if is_ok else (g_res.get("message") or "Failed to search Gmail"),
+                            )
+                        )
+                        final_answer = self._synthesize_tool_fallback_response(
+                            tool_activities=tool_activities,
+                            llm_messages=llm_messages,
+                            clean_message=clean_message,
+                            default_rate_limit_msg=default_err_msg,
+                        )
+                    except Exception as fallback_exc:
+                        logger.warning("[%s] Direct interview fallback failed: %s", execution_id, fallback_exc)
+                        final_answer = default_err_msg
+                else:
+                    final_answer = default_err_msg
         except LLMTimeoutError as exc:
             logger.warning("[%s] LLM Timeout Error: %s", execution_id, exc)
             final_answer = "The AI service timed out while processing your request. Please try again."

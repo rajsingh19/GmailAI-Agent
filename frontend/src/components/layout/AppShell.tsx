@@ -12,16 +12,20 @@ import {
   Menu,
   X,
   ShieldCheck,
+  Briefcase,
   CheckCircle2,
+  LogIn,
+  Loader2,
 } from 'lucide-react';
-import { AuthStatusResponse } from '../../services/api';
+import { AuthStatusResponse, getGoogleOAuthUrl } from '../../services/api';
 
-export type NavTab = 'dashboard' | 'chat' | 'tasks' | 'calendar' | 'gmail' | 'reminders' | 'settings';
+export type NavTab = 'dashboard' | 'chat' | 'jobs' | 'tasks' | 'calendar' | 'gmail' | 'reminders' | 'settings';
 
 interface AppShellProps {
   activeTab: NavTab;
   onTabChange: (tab: NavTab) => void;
   authStatus: AuthStatusResponse | null;
+  authLoading?: boolean;
   unreadCount?: number;
   children: React.ReactNode;
   onSearch?: (query: string) => void;
@@ -31,6 +35,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   activeTab,
   onTabChange,
   authStatus,
+  authLoading = false,
   unreadCount = 0,
   children,
   onSearch,
@@ -38,16 +43,32 @@ export const AppShell: React.FC<AppShellProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const isAuthenticated = authStatus?.authenticated === true;
   const user = authStatus?.user;
   const googleAccount = authStatus?.google_account;
-  const isConnected = googleAccount?.connected ?? false;
+  const isConnected = isAuthenticated && (googleAccount?.connected === true);
 
-  const displayName = user?.full_name || (googleAccount?.email ? googleAccount.email.split('@')[0] : 'Raj Singh');
-  const displayEmail = user?.email || googleAccount?.email || 'raj.singh190904@gmail.com';
-  const initial = displayName.charAt(0).toUpperCase() || 'R';
+  const displayName = authLoading
+    ? 'Loading...'
+    : isAuthenticated
+    ? (user?.full_name || user?.email || 'User')
+    : 'Guest User';
+
+  const displayEmail = authLoading
+    ? 'Checking session...'
+    : isAuthenticated
+    ? (user?.email || '')
+    : 'Not signed in';
+
+  const initial = authLoading
+    ? '...'
+    : isAuthenticated
+    ? (displayName.charAt(0).toUpperCase() || 'U')
+    : 'G';
 
   const navItems = [
     { id: 'dashboard' as NavTab, label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'jobs' as NavTab, label: 'Job Agent', icon: Briefcase },
     { id: 'chat' as NavTab, label: 'Chat', icon: MessageCircle },
     { id: 'tasks' as NavTab, label: 'Tasks', icon: CheckSquare },
     { id: 'calendar' as NavTab, label: 'Calendar', icon: Calendar },
@@ -112,35 +133,61 @@ export const AppShell: React.FC<AppShellProps> = ({
         })}
       </nav>
 
-      {/* User Profile Footer */}
+      {/* User Profile / Auth Footer */}
       <div className="p-3 border-t border-[#E5E7EB]">
-        <button
-          onClick={() => {
-            onTabChange('settings');
-            setMobileMenuOpen(false);
-          }}
-          className="w-full flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-[#F1F5F9] transition-colors text-left cursor-pointer"
-        >
-          {user?.picture_url ? (
-            <img
-              src={user.picture_url}
-              alt={displayName}
-              className="w-8 h-8 rounded-full object-cover border border-[#E5E7EB]"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-[#4F46E5] text-white flex items-center justify-center text-xs font-semibold flex-shrink-0">
-              {initial}
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-[#111827] truncate">
-              {displayName}
-            </div>
-            <div className="text-[11px] text-[#64748B] truncate">
-              {displayEmail}
-            </div>
+        {authLoading ? (
+          <div className="flex items-center gap-2.5 p-1.5 text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-xs">Loading profile...</span>
           </div>
-        </button>
+        ) : !isAuthenticated ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2.5 p-1 rounded-lg">
+              <div className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 border border-slate-200 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                G
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-[#111827] truncate">Guest User</div>
+                <div className="text-[11px] text-[#64748B] truncate">Not signed in</div>
+              </div>
+            </div>
+            <a
+              href={getGoogleOAuthUrl()}
+              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-medium transition-colors shadow-2xs"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign in with Google</span>
+            </a>
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              onTabChange('settings');
+              setMobileMenuOpen(false);
+            }}
+            className="w-full flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-[#F1F5F9] transition-colors text-left cursor-pointer"
+          >
+            {user?.picture_url ? (
+              <img
+                src={user.picture_url}
+                alt={displayName}
+                className="w-8 h-8 rounded-full object-cover border border-[#E5E7EB]"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-[#4F46E5] text-white flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                {initial}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold text-[#111827] truncate">
+                {displayName}
+              </div>
+              <div className="text-[11px] text-[#64748B] truncate">
+                {displayEmail}
+              </div>
+            </div>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -207,17 +254,33 @@ export const AppShell: React.FC<AppShellProps> = ({
 
           {/* Right Topbar Controls */}
           <div className="flex items-center gap-2.5 ml-auto">
-            {/* Google Connection Pill */}
-            {isConnected ? (
+            {/* Google Connection / Auth Pill */}
+            {authLoading ? (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-50 text-slate-500 text-xs font-medium border border-slate-200">
+                <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+                <span>Checking...</span>
+              </div>
+            ) : !isAuthenticated ? (
+              <a
+                href={getGoogleOAuthUrl()}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-medium transition-colors shadow-2xs"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign in with Google</span>
+              </a>
+            ) : isConnected ? (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-200">
                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                 <span>Google Connected</span>
               </div>
             ) : (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-50 text-slate-600 text-xs font-medium border border-slate-200">
-                <ShieldCheck className="w-3 h-3 text-slate-500" />
-                <span>Protected</span>
-              </div>
+              <button
+                onClick={() => onTabChange('settings')}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200 hover:bg-amber-100 transition-colors"
+              >
+                <ShieldCheck className="w-3 h-3 text-amber-600" />
+                <span>Connect Google</span>
+              </button>
             )}
 
             {/* Notification Bell */}
@@ -236,11 +299,15 @@ export const AppShell: React.FC<AppShellProps> = ({
             {/* Avatar */}
             <button
               onClick={() => onTabChange('settings')}
-              className="w-7 h-7 rounded-full bg-[#4F46E5] text-white flex items-center justify-center text-xs font-semibold cursor-pointer overflow-hidden border border-[#E5E7EB]"
-              title="Settings & Profile"
+              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold cursor-pointer overflow-hidden border ${
+                isAuthenticated
+                  ? 'bg-[#4F46E5] text-white border-[#E5E7EB]'
+                  : 'bg-slate-100 text-slate-600 border-slate-300'
+              }`}
+              title={isAuthenticated ? "Settings & Profile" : "Guest User (Click to Sign In)"}
               aria-label="User Profile"
             >
-              {user?.picture_url ? (
+              {isAuthenticated && user?.picture_url ? (
                 <img src={user.picture_url} alt={displayName} className="w-full h-full object-cover" />
               ) : (
                 initial
